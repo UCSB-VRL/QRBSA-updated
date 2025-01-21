@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Q-RBSA (Quaternion Residual Block Self Attention Network)
 High-Resolution 3D EBSD Map Generation Using An Efficient Quaternion Transformer Network
 
@@ -158,3 +159,6 @@ Material datasets will be available by request at discretion of authors.
 
 ## Acknowledgements
 This code is built on [Q-CNN](https://github.com/Orkis-Research/Pytorch-Quaternion-Neural-Networks), [Restormer](https://github.com/swz30/Restormer), [HAN](https://github.com/wwlCape/HAN), and [EDSR](https://github.com/sanghyun-son/EDSR-PyTorch). We thank the authors for sharing their codes. 
+=======
+# QRBSA-updated.
+>>>>>>> 98644cbd8077debce09f5c2c372f70dd2b21c050
