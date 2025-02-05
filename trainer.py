@@ -17,7 +17,7 @@ from collections import defaultdict
 import time
 from thop import profile
 import common
-
+import gc
 
 class Trainer():
     def __init__(self, args, loader_train, loader_val, loader_test, model, loss, ckp):
@@ -46,62 +46,78 @@ class Trainer():
 
         self.error_last = 1e8
         self.epsilon = 0.001
-
-
+        
     def train(self): 
-        #torch.autograd.set_detect_anomaly(True)
-        #self.scheduler.step()
-        self.loss.step()        
-        #epoch = self.scheduler.last_epoch + 1
-        self.epoch = self.epoch + 1
-        epoch = self.epoch
-        lr = self.scheduler.get_last_lr()[0]
-
-        self.ckp.write_log(
-            '[Epoch {}]\tLearning rate: {:.2e}'.format(epoch, Decimal(lr))
-        )
+        self.optimizer.zero_grad(set_to_none=True)  # Ensure previous gradients are cleared
+        
         self.loss.start_log()
         self.model.train()
 
         timer_data, timer_model = utility.timer(), utility.timer()
         total_train_loss = 0
-        
+
         for batch, (lr, hr, filename_lr, filename_hr) in enumerate(self.loader_train):
-            #import pdb; pdb.set_trace()
+            self.epoch += 1
+            epoch = self.epoch
+            learn_rate = self.scheduler.get_last_lr()[0]
+
+            self.ckp.write_log(
+                '[Epoch {}]\tLearning rate: {:.2e}'.format(epoch, Decimal(learn_rate))
+            )
+
             lr, hr = self.prepare([lr, hr])
 
             if self.args.prog_patch:
                 lr, hr = common.get_prog_patch_1D(hr, epoch, self.args.scale)    
-              
+
             timer_data.hold()
             timer_model.tic()
 
-            self.optimizer.zero_grad()
+            # **Reset optimizer gradients before forward pass**
+            for param in self.model.parameters():
+                param.grad = None  # Ensures no stale gradients persist
 
+            # **Forward pass**
             sr = self.model(lr, self.scale)
 
-            _, ch, _, _ = sr.shape
+            # ✅ Ensure `sr` has gradients
+            sr.requires_grad_(True)
 
-                        
+            # **Normalize sr while keeping gradients intact**
+            sr = sr / (torch.norm(sr, dim=1, keepdim=True) + 1e-8)  
+
+            # **Compute loss safely**
             if isinstance(sr, list):
-                loss = np.sum([self.loss(sr[j],hr) for j in range(len(sr))])
+                loss = torch.sum(torch.stack([self.loss(sr[j], hr) for j in range(len(sr))]))
             else:
-                #import pdb; pdb.set_trace()
-                loss = self.loss(sr, hr)
+                loss = self.loss(sr, hr)  # ✅ Do not detach here!
 
-            #if loss.item() > 5000:
-            #import pdb; pdb.set_trace()
-              
+            # **Ensure loss is a scalar**
+            loss = loss.mean()
+
+            print(f"Epoch {epoch}, Batch {batch}: loss.requires_grad={loss.requires_grad}, grad_fn={loss.grad_fn}")
+
+            # **Check for invalid loss values**
+            if not torch.isfinite(loss):
+                print(f'Skipping batch {batch + 1} due to NaN/Inf loss.')
+                continue  # Skip this batch
+
+            # **Ensure loss is within the allowed threshold**
             if loss.item() < self.args.skip_threshold * self.error_last:
-                loss.backward()
+                assert loss.grad_fn is not None, "❌ Loss is detached before backward!"  # Debugging check
+
+                loss.backward()  # ✅ Backpropagate first
                 self.optimizer.step()
+                
+                # ✅ Detach AFTER backpropagation
+                loss = loss.detach()
+                loss = None  # Prevents accidental reuse
             else:
-                print('Skip this batch {}! (Loss: {})'.format(
-                    batch + 1, loss.item()
-                ))
+                print(f'Skipping batch {batch + 1} (Loss: {loss.item()})')
 
             timer_model.hold()
 
+            # **Logging**
             if (batch + 1) % self.args.print_every == 0:
                 self.ckp.write_log('[{}/{}]\t{}\t{:.1f}+{:.1f}s'.format(
                     (batch + 1) * self.args.batch_size,
@@ -111,19 +127,22 @@ class Trainer():
                     timer_data.release()))
 
             timer_data.tic()
-            total_train_loss += loss
 
-        #import pdb; pdb.set_trace()
-        avg_train_loss = total_train_loss / (batch+1)
-        thresh = 1000
-        #wandb.log({'train_loss': avg_train_loss})
-        
+            # **Accumulate loss safely**
+            if loss is not None:
+                total_train_loss += loss.cpu().item()  # Fully remove from computation graph
+
+        avg_train_loss = total_train_loss / (batch + 1)
+
         self.loss.end_log(len(self.loader_train))
         self.error_last = self.loss.log[-1, -1]
-              
-        self.scheduler.step()
-              
-        
+
+        self.scheduler.step()  # **Update learning rate scheduler**
+
+
+
+
+
     def val_error(self):
         
         #epoch = self.scheduler.last_epoch

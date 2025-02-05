@@ -3,7 +3,7 @@ import torch.nn as nn
 
 class MisOrientation(nn.Module):
     """Misoreintation loss."""
-    def __init__(self, args):
+    def __init__(self, args, mode):
         super(MisOrientation, self).__init__()
         #import pdb; pdb.set_trace()
         dist_type = args.dist_type
@@ -26,7 +26,7 @@ class MisOrientation(nn.Module):
         else:
             syms = None
         
-        self.act_loss = ActAndLoss(act, Loss(dist_func=dist_type, syms=syms), quat_dim=1)
+        self.act_loss = ActAndLoss(act, Loss(syms=syms,mode=True), quat_dim=1)
             
     def forward(self, sr, hr):
         #import pdb; pdb.set_trace()

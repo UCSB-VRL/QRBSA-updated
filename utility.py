@@ -154,7 +154,7 @@ class Misorientation_dist:
         else:
             syms = None
         
-        self.act_loss = ActAndLoss(act, Loss(dist_func=dist_type, syms=syms), quat_dim=-1)
+        self.act_loss = ActAndLoss(act, Loss(syms=syms,mode=False), quat_dim=-1)
             
     def __call__(self, sr, hr):
         loss = self.act_loss(sr, hr)
@@ -195,9 +195,9 @@ class checkpoint():
         if args.load == '.':
             if args.save == '.':
                 args.save = now
-            self.dir = '/data/dkjangid/Material_Projects/superresolution/Quaternion_experiments/NMI_model_weights/' + args.save
+            self.dir = '/data/home/umang/Materials/Materials_data_mount/fz_reduced/Open_718_Z_Upsampling/' + args.save
         else:
-            self.dir = '/data/dkjangid/Material_Projects/superresolution/Quaternion_experiments/NMI_model_weights/' + args.load
+            self.dir = '/data/home/umang/Materials/Materials_data_mount/fz_reduced/Open_718_Z_Upsampling/' + args.load
             if not os.path.exists(self.dir):
                 args.load = '.'
             else:

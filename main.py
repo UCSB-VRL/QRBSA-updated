@@ -15,7 +15,6 @@ from prettytable import PrettyTable
 args = Argparser().args
 #wandb.init(project="EBSDSR_Z_Upsampling_Networks_X2", config=args)
 
-
 checkpoint = utility.checkpoint(args)
 
 torch.manual_seed(123)
@@ -38,13 +37,12 @@ def count_parameters(model):
 
 if checkpoint.ok:
    
-    
     """
     Train and Validation Data Loader
 
     """
 
-    import pdb; pdb.set_trace()
+    # import pdb; pdb.set_trace()
     #lr_train_data_path = f'/{args.input_dir}/{args.lr_data_dir}'
     lr_train_data_path = None
     hr_train_data_path = f'/{args.input_dir}/{args.hr_data_dir}' 

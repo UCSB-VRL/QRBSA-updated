@@ -45,6 +45,28 @@ def hadamard_prod(q1,q2):
         X_out = (X1 * q2[...,None,:]).sum(-1)
         return X_out
 
+def conjugate(tensor):
+    """
+    Computes the conjugate of a quaternion tensor.
+    
+    Args:
+        tensor (torch.Tensor): A tensor of shape (B, M, N, 4), where the last dimension represents a quaternion [w, x, y, z].
+    
+    Returns:
+        torch.Tensor: A tensor of the same shape, containing the conjugates of the input quaternions.
+    """
+    # Ensure the input tensor has the correct last dimension size
+    if tensor.size(-1) != 4:
+        raise ValueError("The last dimension of the input tensor must be of size 4, representing a quaternion.")
+    
+    # Extract scalar (w) and vector (x, y, z) parts
+    w = tensor[..., 0]  # Scalar part
+    xyz = tensor[..., 1:]  # Vector part
+    
+    # Compute the conjugate: [w, -x, -y, -z]
+    conjugate = torch.cat([w.unsqueeze(-1), -xyz], dim=-1)
+    
+    return conjugate
 
 
 # Performs outer product on ndarrays of quats

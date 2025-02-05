@@ -55,7 +55,7 @@ class Loss(nn.modules.loss._Loss):
 
             elif loss_type.find('MisOrientation') >= 0:
                 module = import_module('loss.misorientation')
-                loss_function = getattr(module, 'MisOrientation')(args)                 
+                loss_function = getattr(module, 'MisOrientation')(args, mode=True)                 
             
             self.loss.append({
                 'type': loss_type,
