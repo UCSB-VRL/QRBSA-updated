@@ -1,0 +1,17 @@
+#ignore folders
+# all folders in Quaternion_experiments
+Quaternion_experiments/*
+IPF_mapping/DREAM3D-6.5.171-Linux-x86_64/
+
+# Ignore files
+IPF_Mapping/FCC_Val_02-UPsa.dream3d
+
+# Ignore large files
+IPF_mapping/DREAM3D-6.5.171-Linux-x86_64/Data/T12-MAI-2010/fw-ar-IF1-aptr12-corr.ctf
+IPF_mapping/DREAM3D-6.5.171-Linux-x86_64/Data/T12-MAI-2010/fw-ar-IF1-avtr12-corr.ctf
+IPF_mapping/DREAM3D-6.5.171-Linux-x86_64/lib/libITKImageProcessing.plugin
+IPF_mapping/FCC_Val_02-UPsa.dream3d
+
+#ignore pycache
+__pycache__/
+*.pyc
