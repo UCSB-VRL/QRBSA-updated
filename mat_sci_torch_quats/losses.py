@@ -2,8 +2,8 @@ import torch
 from mat_sci_torch_quats.quats import rand_quats, outer_prod, rot_dist, scalar_first2last,  scalar_last2first, validation_rot_dist_approx_MAT_symmetry, transformation_matrix_tensor, validation_min_angle_transformation
 from mat_sci_torch_quats.symmetries import fcc_syms, hcp_syms
 from mat_sci_torch_quats.rot_dist_approx import RotDistLoss
-from mat_sci_torch_quats.quats import kernel_misorientation_deviation, fz_reduce, matrix_hamilton_prod, inverse_matrix_generate
-from mat_sci_torch_quats.new_utils import sym_expand_transform, quaternion_inverse
+from mat_sci_torch_quats.quats import kernel_misorientation_deviation, fz_reduce, find_symmetry, matrix_hamilton_prod
+from mat_sci_torch_quats.new_utils import sym_expand_transform
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -96,23 +96,17 @@ class Loss:
                         # Step 2: take QHR to QHRfz
                         q2fz = fz_reduce(q2, self.syms)
                         
-                        # Step 3: Symmetry expand q1fz and get the transformation vector that takes q1fz to q1/
-                        # and get the transformation quaternion
-                        q1fz_inv = inverse_matrix_generate(q1fz)
-
-                        # 2) get the transformation T to get q1 from q1fz
-                        T = matrix_hamilton_prod(q1, q1fz_inv) # shape (..., 4)
+                        # Step 3: get the symmetry transformation T
+                        chosen_sym = find_symmetry(q1fz, q1, self.syms)
                         
                         # Step 4: take q2fz to zone of q1 zone by applying the transformation T
-                        q2_transformed = matrix_hamilton_prod(T, q2fz)
+                        q2_transformed = matrix_hamilton_prod(q2fz, chosen_sym)
 
                         # Step 5: calculate the distance between q1 and q2_transformed
                         # import pdb; pdb.set_trace()
                         dists = self.dist_func(q1, q2_transformed)
                         dist_min = dists.min(-1)[0]
                         return dist_min
-
-
 
         def __str__(self):
                 return f'Dist -> dist_func: {self.dist_func}, ' + \

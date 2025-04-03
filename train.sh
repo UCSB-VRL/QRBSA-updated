@@ -6,13 +6,13 @@ python -m cProfile main.py \
     --val_lr_data_dir 'Val/LR_Images/X4/preprocessed_imgs_1D' \
     --val_hr_data_dir 'Val/HR_Images/preprocessed_imgs_1D' \
     --model 'qrbsa_1d' \
-    --lr 5e-7 \
+    --lr 2e-6 \
     --weight_decay 0 \
     --n_resblocks 10 \
     --n_resgroups 10 \
     --n_feats 256 \
     --n_colors 4 \
-    --save '/qrbsa_newloss_5step' \
+    --save '/qrbsa_newloss_fixed_transpose_conv_upsample' \
     --loss '1*MisOrientation' \
     --dist_type 'valid_symmHR_expand' \
     --patch_size 64 \

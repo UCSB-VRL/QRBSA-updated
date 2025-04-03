@@ -371,7 +371,7 @@ def fz_reduce(q,syms):
 
         # 3) Gather the best quaternion from q_w_syms
         batch_indices = torch.arange(q_w_syms.size(0), device=q_w_syms.device)
-        q_fz = q_w_syms[batch_indices, min_ind]  
+        q_fz = q_w_syms[batch_indices, min_ind]
 
         # 4) Enforce q_fz[...,0] ≥ 0  (convention: keep scalar part positive)
         q_fz *= torch.sign(q_fz[..., :1])
@@ -379,6 +379,75 @@ def fz_reduce(q,syms):
         # 5) Reshape to desired output shape
         q_fz = q_fz.reshape(shape)
         return q_fz
+
+def quat_angle(q1, q2, eps=1e-7):
+    """
+    Computes the angle between two unit quaternions q1 and q2.
+    q1, q2: shape (..., 4)
+    Returns: shape (...), the angle in radians.
+    """
+    # 1) Normalize the quaternions in case they drifted from unit length.
+    q1 = q1 / (q1.norm(dim=-1, keepdim=True).clamp_min(eps))
+    q2 = q2 / (q2.norm(dim=-1, keepdim=True).clamp_min(eps))
+
+    # 2) Dot product: shape (...), since last dim is 4
+    dot = (q1 * q2).sum(dim=-1)
+
+    # 3) The absolute value handles the q <-> -q symmetry
+    dot_clamped = dot.abs().clamp(max=1.0)
+
+    # 4) Angle = 2 * arccos( |dot| )
+    angle = 2.0 * torch.arccos(dot_clamped)
+    return angle
+
+def find_symmetry(qfz, qtarget, syms):
+    """
+    For each quaternion in qfz, find which symmetry in 'syms' yields the minimal 
+    misorientation angle to qtarget.
+
+    qfz:      shape (..., 4)    e.g. [B, 4]
+    qtarget:  shape (..., 4) or (4); must be broadcastable with qfz
+    syms:     shape (N, 4)      N symmetry quaternions
+    returns:  shape (..., 4)    the symmetry in 'syms' that best aligns qfz to qtarget
+    """
+    # Flatten qfz to [B, 4] if it has extra leading dims
+    original_shape = qfz.shape  # e.g. [B, 4]
+    qfz_flat = qfz.reshape(-1, 4)  # [B, 4]
+
+    # 'outer_prod(qfz_flat, syms)' should produce [B, N, 4]
+    # each row i in [B] enumerates qfz_flat[i] * each syms[j]
+    q_w_syms = outer_prod(qfz_flat, syms)  # shape [B, N, 4]
+
+    # Similarly flatten qtarget if it has matching leading dims. If qtarget is just (4,) 
+    # we can treat it as a single quaternion for all qfz. If qtarget has shape [B, 4], 
+    # it must match qfz_flat's leading dimension.
+    if qtarget.dim() == 1:
+        # shape (4,) => single quaternion for all
+        # Expand to [1, 1, 4] so it can broadcast with [B, N, 4]
+        qtarget_expanded = qtarget.view(1, 1, 4)
+    else:
+        # Suppose qtarget also has shape (..., 4) => flatten:
+        qtarget_flat = qtarget.reshape(-1, 4)  # [B, 4] if it matches qfz_flat
+        # Expand to [B, 1, 4] so it can broadcast with [B, N, 4]
+        qtarget_expanded = qtarget_flat.unsqueeze(1)
+
+    # Vectorized angle computation => shape [B, N]
+    # 'quat_angle' should accept two tensors of shape [B, N, 4], returning [B, N].
+    angles = quat_angle(q_w_syms, qtarget_expanded)  # [B, N]
+
+    # Find index of minimal angle for each batch element => shape [B]
+    _, min_ind = angles.min(dim=-1)
+
+    # Gather the corresponding symmetry => shape [B, 4]
+    # syms[min_ind] won't work directly because min_ind is [B] but 'syms' is [N,4]
+    # We can do it by advanced indexing:
+    syms_min = syms[min_ind]  # shape [B, 4]
+
+    # Finally, reshape back to original leading dims (if qfz had shape [B, 4], no change).
+    syms_min = syms_min.view(original_shape[:-1] + (4,))
+
+    return syms_min
+
 
 def rev_map_quat(qfz, q, syms):
         shape = q.shape
