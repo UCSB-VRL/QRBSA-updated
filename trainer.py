@@ -125,29 +125,29 @@ class Trainer():
             # **Check for gradient explosion**  
             GRAD_EXPLOSION_THRESHOLD = 50  # Set a threshold for gradients
 
-            for name, param in self.model.named_parameters():
-                if param.grad is not None:
-                    max_grad = param.grad.abs().max().item()
-                    #print("max_grad:", max_grad)
-                    if max_grad > GRAD_EXPLOSION_THRESHOLD:
-                        import pdb; pdb.set_trace()
-                        print(f"⚠️ Warning: {name} has large gradients! Max grad: {max_grad:.4f}")
+            # for name, param in self.model.named_parameters():
+            #     if param.grad is not None:
+            #         max_grad = param.grad.abs().max().item()
+            #         #print("max_grad:", max_grad)
+            #         if max_grad > GRAD_EXPLOSION_THRESHOLD:
+            #             import pdb; pdb.set_trace()
+            #             print(f"⚠️ Warning: {name} has large gradients! Max grad: {max_grad:.4f}")
 
-            total_norm = 0.0
-            for param in self.model.parameters():
-                if param.grad is not None:
-                    param_norm = param.grad.norm().item()
-                    total_norm += param_norm ** 2
+            # total_norm = 0.0
+            # for param in self.model.parameters():
+            #     if param.grad is not None:
+            #         param_norm = param.grad.norm().item()
+            #         total_norm += param_norm ** 2
 
-            total_norm = total_norm ** 0.5  # Compute total gradient norm
+            # total_norm = total_norm ** 0.5  # Compute total gradient norm
 
-            # Threshold for gradient explosion detection
-            GRAD_THRESHOLD = 10000
+            # # Threshold for gradient explosion detection
+            # GRAD_THRESHOLD = 10000
 
-            if total_norm > GRAD_THRESHOLD:
-                print(f"Warning: Gradient norm too large ({total_norm:.2f})! Debugging...")
-                import pdb;
-                pdb.set_trace()  # Enter debug mode
+            # if total_norm > GRAD_THRESHOLD:
+            #     print(f"Warning: Gradient norm too large ({total_norm:.2f})! Debugging...")
+            #     import pdb;
+            #     pdb.set_trace()  # Enter debug mode
             self.optimizer.step()
                 
             # ✅ Detach AFTER backpropagation

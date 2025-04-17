@@ -12,7 +12,7 @@ python -m cProfile main.py \
     --n_resgroups 10 \
     --n_feats 4 \
     --n_colors 4 \
-    --save '/qrbsa_consistency_includes_symmetry' \
+    --save '/qrbsa_validHR_expand' \
     --loss '1*MisOrientation' \
     --dist_type 'valid_symmHR_expand' \
     --patch_size 64 \
@@ -23,7 +23,7 @@ python -m cProfile main.py \
     --syms_type 'FCC' \
     --syms_req \
     --epoch 500 \
-    --include_consistency_loss True \
+    --include_consistency_loss False \
     --prog_patch \
     
  

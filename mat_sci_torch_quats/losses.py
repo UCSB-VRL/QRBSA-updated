@@ -106,8 +106,8 @@ class Loss:
                         # Step 5: calculate the distance between q1 and q2_transformed
                         # import pdb; pdb.set_trace()
                         dists = self.dist_func(q1, q2_transformed)
-                        dist_min = dists.min(-1)[0]
-                        return dist_min
+                        #dist_min = dists.min(-1)[0]
+                        return dists
 
         def __str__(self):
                 return f'Dist -> dist_func: {self.dist_func}, ' + \

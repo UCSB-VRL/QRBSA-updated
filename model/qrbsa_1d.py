@@ -83,7 +83,7 @@ class Upsampler1D(nn.Module):
         self.conv_layer2 = conv2d(2*n_feat, 2*n_feat, kernel_size = kernel_size, stride = 1, padding = kernel_size //2)
         # Adding dropout layer after the convolution layer
         self.dropout = nn.Dropout(p=dropout_prob)  # Dropout with specified probability
-        self.pixel_shuffle = PixelShuffle1D(4) 
+        self.pixel_shuffle = PixelShuffle1D(2) 
         self.transposed_conv = TransposedConvUpsampler1D(2*n_feat, n_feat)
         #self.up_sample = nn.Upsample(scale_factor=2, mode='linear', align_corners=True)
         self.scale = scale

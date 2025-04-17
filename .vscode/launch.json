@@ -14,7 +14,7 @@
                 "console": "integratedTerminal",
                 "env": { "CUDA_VISIBLE_DEVICES": "1" },
                 "args": [
-                    "--dist_type", "minimum_angle_transformation",
+                    "--dist_type", "valid_symmHR_expand",
                     "--input_dir", "/data/home/umang/Materials/Materials_data_mount/fz_reduced/Open_718_Z_Upsampling",
                     "--hr_data_dir", "Train/HR_Images/preprocessed_imgs_1D",
                     "--val_lr_data_dir", "Val/LR_Images/X4/preprocessed_imgs_1D",
@@ -22,7 +22,7 @@
                     "--model", "qrbsa_1d",
                     "--n_resblocks", "10",
                     "--n_resgroups", "10",
-                    "--n_feats", "128",
+                    "--n_feats", "256",
                     "--n_colors", "4",
                     "--save", "/DEBUG_SESSION",
                     "--loss", "1*MisOrientation",
@@ -35,7 +35,7 @@
                     "--syms_req",
                     "--prog_patch",
                     "--lr", "2e-5",
-                    "--include_consistency_loss", "True", 
+                    "--include_consistency_loss", "FAlse", 
                     "--weight_decay", "1e-5",
 
                 ]
