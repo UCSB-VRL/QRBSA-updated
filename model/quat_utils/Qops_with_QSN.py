@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 # from torch.autograd import Variable
-from model.quat_utils.quaternion_layers import QuaternionConv, QuaternionLinear#, QuaternionTransposeConv #, QuaternionLinear
+from model.quat_utils.quaternion_layers import QuaternionConv, QuaternionLinear, QuaternionConv_w_rotation#, QuaternionTransposeConv #, QuaternionLinear
 # from torch.nn import Parameter
 from model.quat_utils.QBN_Vecchi2 import QuaternionBatchNorm2d as QBatchNorm
 from model.quat_utils.QBN_Vecchi2 import QuatLayerNorm
@@ -47,7 +47,7 @@ class conv2d(nn.Module):
         torch.nn.init.normal_(self.conv.i_weight.data, std=0.02)
         torch.nn.init.normal_(self.conv.j_weight.data, std=0.02)
         torch.nn.init.normal_(self.conv.k_weight.data, std=0.02)
-        
+
         if spectral_normed:
             self.conv = Qspectral_norm(self.conv)
 
@@ -92,7 +92,6 @@ class QAttention(nn.Module):
         self.qkv = conv2d(dim, dim*3, kernel_size=1, stride=1, padding=0)
         self.qkv_dwconv = conv2d(dim*3, dim*3, kernel_size=3, stride=1, padding=1)
         self.project_out = conv2d(dim, dim, kernel_size=1, stride=1, padding=0)
-
 
     def forward(self, x):
         b,c,h,w = x.shape

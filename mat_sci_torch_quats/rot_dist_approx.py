@@ -49,8 +49,33 @@ class RotDistLoss(torch.nn.Module):
         euclid_dist = torch.linalg.norm(q_pred_neg- q_gt.to(q_pred_neg.device), dim=-1)
         
         theta = 2*EuclidToRotApprox()(euclid_dist)
-        theta_min = theta.min(-1)[0]
+        #import pdb; pdb.set_trace()
+        theta_min, selected_symmetries = theta.min(-1)
+
         return theta_min
 
+        #Check if q_gt is not None and expand its shape to match q_pred
+
+
+# class RotDistLoss(torch.nn.Module):
+#     def forward(self, q_pred, q_gt):
+#         # Check if q_gt is not None and expand its shape to match q_pred
+#         if q_gt is not None:
+#             # Squeeze q_gt to remove the singleton dimension
+#             q_gt = q_gt.squeeze(dim=-2)  # Remove dimension with size 1 (e.g., [B, H, W, 1, 4] -> [B, H, W, 4])
         
+#         # Now expand q_gt to the same shape as q_pred
+#         q_gt = q_gt.expand_as(q_pred)  # Broadcasting q_gt to q_pred shape
+
+#         # Compute the Euclidean distance between q_pred and q_gt (per quaternion in the batch)
+#         euclid_dist = torch.linalg.norm(q_pred - q_gt.to(q_pred.device), dim=-1)
+
+#         # Convert Euclidean distance to rotation angle (approximation)
+#         theta = 2 * EuclidToRotApprox()(euclid_dist)
+        
+#         # Find the minimal angle (in case multiple symmetries or rotations are involved)
+#         theta_min = theta.min(-1)[0]
+
+#         return theta_min
+
 

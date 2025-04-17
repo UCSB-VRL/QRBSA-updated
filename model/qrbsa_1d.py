@@ -75,7 +75,6 @@ class PixelUnshuffle1D(torch.nn.Module):
         return x
 
 
-
 class Upsampler1D(nn.Module):
     def __init__(self, kernel_size, scale, n_feat, bn=False, act=False, bias=True, dropout_prob=0.2):
         super(Upsampler1D, self).__init__()
@@ -84,12 +83,12 @@ class Upsampler1D(nn.Module):
         self.conv_layer2 = conv2d(2*n_feat, 2*n_feat, kernel_size = kernel_size, stride = 1, padding = kernel_size //2)
         # Adding dropout layer after the convolution layer
         self.dropout = nn.Dropout(p=dropout_prob)  # Dropout with specified probability
-        self.pixel_shuffle = PixelShuffle1D(2) 
+        self.pixel_shuffle = PixelShuffle1D(4) 
         self.transposed_conv = TransposedConvUpsampler1D(2*n_feat, n_feat)
         #self.up_sample = nn.Upsample(scale_factor=2, mode='linear', align_corners=True)
         self.scale = scale
         self.n_feat = n_feat
-         
+
     def forward(self, x):
         x = x.permute(0,1,3,2)
         if (self.scale & (self.scale - 1)) == 0:    # Is scale = 2^n?

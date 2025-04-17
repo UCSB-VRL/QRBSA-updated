@@ -14,9 +14,6 @@ from prettytable import PrettyTable
 
 args = Argparser().args
 
-# hard coded for now
-args.include_consistency_loss = False
-
 #wandb.init(project="EBSDSR_Z_Upsampling_Networks_X2", config=args)
 checkpoint = utility.checkpoint(args)
 

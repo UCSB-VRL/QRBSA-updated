@@ -8,7 +8,7 @@ python test.py \
     --n_resgroups 10 \
     --n_feats 256 \
     --n_colors 4 \
-    --save 'qrbsa_newloss_fixed' \
+    --save 'qrbsa_consistency_includes_symmetry' \
     --resume -1 \
     --model_to_load 'model_best' \
     --test_dataset_type 'Test' \

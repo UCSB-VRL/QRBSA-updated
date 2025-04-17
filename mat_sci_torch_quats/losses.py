@@ -68,20 +68,21 @@ class Loss:
 
                 if self.dist_type == 'minimum_angle_transformation':
                          ## Traiing with the minimum_angle_transformation based loss-function
-                        T_min = transformation_matrix_tensor(q1, q2, self.syms)
+                        T_min, selected_symmetries = transformation_matrix_tensor(q1, q2, self.syms)
                         zero_broadcast_tensor = torch.Tensor([1,0,0,0])
 
                         # broadcast the tensor to the same shape as T_min
                         zero_broadcast_tensor = zero_broadcast_tensor.reshape(1,1,1,4)
                         
-                        return self.dist_func(T_min, zero_broadcast_tensor)
+                        dist_min= self.dist_func(T_min, zero_broadcast_tensor)
+                        return dist_min, selected_symmetries
                 
                 elif self.dist_type == 'rot_dist_approx':
                         q1_w_syms = outer_prod(q1,self.syms)
                         if q2 is not None: q2 = q2[...,None,:]
                         dists = self.dist_func(q1_w_syms,q2)
                         dist_min = dists.min(-1)[0]
-                        return dist_min      
+                        return dist_min     
                                 # T_series_min = rot_dist(q1, q2, self.syms)
                                 # zero_broadcast_tensor = torch.Tensor([1,0,0,0])
                                 # zero_broadcast_tensor = zero_broadcast_tensor.reshape(1,1,1,4) 
@@ -100,7 +101,7 @@ class Loss:
                         chosen_sym = find_symmetry(q1fz, q1, self.syms)
                         
                         # Step 4: take q2fz to zone of q1 zone by applying the transformation T
-                        q2_transformed = matrix_hamilton_prod(q2fz, chosen_sym)
+                        q2_transformed = matrix_hamilton_prod(chosen_sym, q2fz)
 
                         # Step 5: calculate the distance between q1 and q2_transformed
                         # import pdb; pdb.set_trace()
@@ -125,8 +126,8 @@ class ConsitencyLoss:
                 syms_neg = -self.syms
                 self.syms = torch.cat((self.syms, syms_neg))
                 
-        def __call__(self, q1, q2, angles):
-                return self.dev_func(q1, q2, angles, syms=self.syms)
+        def __call__(self, q1, q2, angles, selected_symmetries):
+                return self.dev_func(q1, q2, angles, selected_symmetries, syms=self.syms)
                
         def __str__(self):
                 return f'Dist -> dist_func: {self.dev_func}'
@@ -181,10 +182,10 @@ class ActAndLoss:
                     X_act = X 
                 
                 if not self.include_consistency_loss:
-                        return self.loss(X_act,labels)
+                        return self.loss(X_act, labels)
                 else:
-                        angles =self.loss(X_act,labels)
-                        consistency_loss = self.consistency_loss(X_act,labels, angles)
+                        angles, selected_symmetries =self.loss(X_act,labels)
+                        consistency_loss = self.consistency_loss(X_act,labels, angles, selected_symmetries)
                         return angles, consistency_loss
                 
         def __str__(self):

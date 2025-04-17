@@ -210,6 +210,7 @@ class Trainer():
                 lr = lr.permute(0, 2, 3, 1)
                 hr = hr.permute(0, 2, 3, 1)
 
+                
                 val_loss = self.mis_orient(sr, hr)
                 val_loss = torch.mean(val_loss)
                 val_loss = val_loss.detach().cpu().numpy()

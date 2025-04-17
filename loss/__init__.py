@@ -91,10 +91,10 @@ class Loss(nn.modules.loss._Loss):
         losses = []
         for i, l in enumerate(self.loss):
             if l['function'] is not None:
-
+                consistency_weight = 0.2
                 if self.include_consistency_loss:
                     loss, consistency_loss = l['function'](sr, hr)
-                    effective_loss = l['weight'] * loss + l['weight'] * consistency_loss
+                    effective_loss = l['weight'] * loss + consistency_weight*l['weight'] * consistency_loss
                 else:
                     loss = l['function'](sr, hr)
                     effective_loss = l['weight'] * loss

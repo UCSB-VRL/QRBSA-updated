@@ -17,11 +17,11 @@
 # 3. Run the script
 
 current_dir=$(pwd)
-modelname="qrbsa_newloss_fixed"
+modelname="qrbsa_consistency_includes_symmetry"
 exp_type="min_angle_transform"
 modeltoload="model_best"
 filetype="SR"
-datasettype=("Val")
+datasettype=("Test")
 materials=("Open_718")
 sect="x_normal"
 exp_dir_path="$current_dir/Quaternion_experiments"
