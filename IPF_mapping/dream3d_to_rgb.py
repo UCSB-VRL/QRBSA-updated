@@ -27,6 +27,8 @@ def get_key(fp):
 file_locs = sorted(glob.glob(f'{npy_file_dir}/{args.data}*HR**.npy'), key=get_key)
 file_locs += sorted(glob.glob(f'{npy_file_dir}/{args.data}*SR**.npy'), key=get_key)
 
+file_locs = glob.glob(f'{npy_file_dir}/**/*.npy', recursive=True)
+
 total_file = len(file_locs)
 print("total files", total_file)    
 

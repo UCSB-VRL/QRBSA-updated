@@ -17,15 +17,15 @@
 # 3. Run the script
 
 current_dir=$(pwd)
-modelname="qrbsa_newloss_fixed"
-exp_type="min_angle_transform"
+modelname="qrbsa_SR_random_versions_bs1_loss2"
+exp_type="minimum_angle_transform"
 modeltoload="model_best"
-filetype="SR"
-datasettype=("Val")
+filetype="HR"
+datasettype=("Test")
 materials=("Open_718")
 sect="x_normal"
 exp_dir_path="$current_dir/Quaternion_experiments"
-material_dream3dfile="/data/home/umang/Materials/data/Open_718_Training.dream3d"
+material_dream3dfile="/data/home/umang/Materials/Materials_data_mount/Open_718_Training.dream3d"
 
 # d3_sourceName (material_dream3dfile) = '/home/joaquin/Q-RBSA/IPF_mapping/FCC_Val_02-UPsa.dream3d'
 # d3_sourceName (material_dream3dfile)= '/data/dkjangid/superresolution/Material_Dataset/Ti64_DIC_Homo_and_Cubochoric_FZ.dream3d'

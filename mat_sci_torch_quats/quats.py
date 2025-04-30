@@ -6,6 +6,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import torch.nn.functional as F
+from mat_sci_torch_quats.symmetries import fcc_syms, hcp_syms
 
 # Defines mapping from quat vector to matrix. Though there are many
 # possible matrix representations, this one is selected since the
@@ -19,8 +20,84 @@ qi = np.matmul(qj,qk)
 Q_arr = torch.Tensor([q1,qi,qj,qk])
 Q_arr_flat = Q_arr.reshape((4,16))
 
+num_classes = 48  
 
-def kernel_misorientation_deviation(qSR, qHR, angles, syms=None):
+
+
+def one_hot_encode(symm_vectors, num_classes):
+    """
+    One-hot encode the categorical symm_vectors.
+    
+    Args:
+        symm_vectors (Tensor): Tensor of shape (B, C, H, W), with C being the categorical class.
+        num_classes (int): Number of possible categories (classes) for symmetries.
+        
+    Returns:
+        Tensor: One-hot encoded tensor of shape (B, num_classes, H, W).
+    """
+    return F.one_hot(symm_vectors.long(), num_classes=num_classes).float()
+
+
+def compute_hamming_distance(patch1, patch2):
+    """
+    Compute the Hamming distance between two one-hot encoded patches.
+    
+    Args:
+        patch1 (Tensor): A one-hot encoded patch of shape (num_classes, H', W').
+        patch2 (Tensor): Another one-hot encoded patch of the same shape.
+        
+    Returns:
+        Tensor: Hamming distance for each patch.
+    """
+    return (patch1 != patch2).sum(dim=1)  # Sum across the class dimension to compute the distance
+
+
+def kernel_symmetry_local_loss(symm_vectors, kernel_size=3, num_classes=48, threshold=0.1):
+    """
+    Apply a kernel-based loss that penalizes variations in symmetry within each local patch.
+    
+    Args:
+        symm_vectors (Tensor): One-hot encoded tensor of shape (B, H, W, C).
+        kernel_size (int): Size of the kernel (e.g., 3 for 3x3 patches).
+        num_classes (int): Number of possible categories for symmetries.
+        threshold (float): Threshold for penalizing high Hamming distance (more variation).
+        
+    Returns:
+        Tensor: Local kernel loss that penalizes variations within each patch.
+    """
+    
+    # Convert symm_vectors to (B, C, H, W) for F.unfold
+    symm_vectors = symm_vectors.permute(0, 3, 1, 2)  # Convert from [B, H, W, C] to [B, C, H, W]
+
+    # Use F.unfold to extract patches (B, C * K * K, H', W')
+    unfolded = F.unfold(symm_vectors, kernel_size=kernel_size)
+
+    # Now we are comparing across the K*K (kernel size), so let's compute the Hamming loss within each patch
+    # Reshape to (B, num_classes, K*K, H', W') - the last two dimensions will represent the flattened patch
+    unfolded_reshaped = unfolded.view(
+        unfolded.shape[0],  # Batch size (B)
+        num_classes,  # Number of classes (C)
+        kernel_size*kernel_size,  # Flatten K*K (9 or whatever kernel size you're using)
+        symm_vectors.shape[2] - kernel_size + 1,  # Output height after convolution
+        symm_vectors.shape[3] - kernel_size + 1   # Output width after convolution
+    )
+
+    # Compute the Hamming distance for the one-hot encoded vectors within the patch.
+    # The Hamming distance is computed across the K*K dimension.
+    # We use log-softmax to compute the log-likelihood for each pixel
+    cross_entropy_loss = F.cross_entropy(
+        unfolded_reshaped,              # This represents the predicted "probabilities"
+        torch.argmax(unfolded_reshaped, dim=1),  # We are using the argmax to simulate the target class
+        reduction="none"  # Compute element-wise loss
+    )
+    
+    # To get a total loss for each patch (across all pixels in the patch), you can sum or average the losses
+    patch_loss = cross_entropy_loss.mean(dim=1)  # Sum over K*K (last two dimensions)
+    
+    return patch_loss
+
+
+def kernel_misorientation_deviation(qSR, qHR, angles, selected_symmetries, syms=None):
         
         # two losses
         # 1. higher deviation
@@ -48,6 +125,7 @@ def kernel_misorientation_deviation(qSR, qHR, angles, syms=None):
         Returns:
                 misor_diff: Misorientation deviation for non-boundary regions, shape (B, H-2, W-2)
         """
+        
         qHRperm = qHR.permute(0, 3, 1, 2).contiguous()
 
         K = 3  # Kernel size
@@ -63,22 +141,34 @@ def kernel_misorientation_deviation(qSR, qHR, angles, syms=None):
         q0_patches = q_patches[:, 0]  # Shape: (B, 9, H-2, W-2)
         orientation_angles = 2 * torch.arccos(q0_patches.clamp(-1 + 1e-7, 1 - 1e-7))
 
+        # HERE THE ANGLES ARE CALCULATED WRT [1000] -- BASIS OF IPF MAP COLOR GENERATION. 
+        # CHOOSE THE SYMMETRY WITH RIGHT 
+
         # Get the angles of the patches with right symmetry
         if syms is not None:
                 syms = syms.to(qHR.device)
                 qpatches_inv = inverse_matrix_generate(q_patches) # only uses q1 to obtain tensor shape.
                 # unit_quat = torch.Tensor([1,0,0,0]).to(qHR.device)
-                unit_quat = torch.zeros((1,4)).to(qHR.device)
-                unit_quat[...,0] = 1
-                # make unit quaternion shape of exactly qHR
-                unit_quat = unit_quat.reshape((1,1,1,4)).expand(B, 1, H-(K-1), W-(K-1))
+                # 1) Create a [1, 4, 1, 1, 1] tensor so that the second dimension is 4
+                unit_quat = torch.zeros((1, 4, 1, 1, 1), device=qHR.device)
+                unit_quat[..., 0] = 1.0  # make it the identity quaternion: [1,0,0,0]
 
-                T1 = matrix_hamilton_prod(qpatches_inv, unit_quat)
+                # 2) Expand to [B, C=4, K*K, H-(K-1), W-(K-1)]
+                #    => e.g. [4, 4, 9, 62, 62]
+                unit_quat = unit_quat.expand(B, 4, K*K, H - (K - 1), W - (K - 1))
+
+                T1 = matrix_hamilton_prod(qpatches_inv.permute(0,2,3,4,1).contiguous(), unit_quat.permute(0, 2,3,4,1).contiguous())
 
                 T_syms = outer_prod(T1, syms)
                 T_syms = T_syms.view(-1, syms.shape[0], 4)
-
+                
+                # import pdb; pdb.set_trace()
                 orientation_angles = 2*torch.arccos(T_syms[...,0])
+                # get the minimum angle
+                min_ind = orientation_angles.min(-1)[1] # still differentiable --> gradient flows through only for min.
+                min_ind_flat = min_ind.view(-1)
+                orientation_angles = orientation_angles[torch.arange(len(orientation_angles)), min_ind_flat]
+                orientation_angles = orientation_angles.view(B, K*K, H - (K-1), W - (K-1))      
 
         # Determine non-grain-boundary patches
         min_angle = orientation_angles.min(dim=1).values
@@ -93,7 +183,16 @@ def kernel_misorientation_deviation(qSR, qHR, angles, syms=None):
         # Zero out regions not satisfying the mask
         misor_diff = misor_diff * mask
 
-        return misor_diff
+        # NOW get variance in kernel symmetry zone selection
+        # import pdb; pdb.set_trace()
+        selected_symmetries= one_hot_encode(selected_symmetries, num_classes)
+        selected_symm_kernel_var = kernel_symmetry_local_loss(selected_symmetries, num_classes=num_classes, kernel_size=K)
+        selected_symm_kernel_var= selected_symm_kernel_var * mask
+
+        kernel_loss = selected_symm_kernel_var + misor_diff
+
+
+        return kernel_loss
 
 
 # Checks if 2 arrays can be broadcast together
@@ -186,27 +285,32 @@ def safe_arccos(x):
 # Generate the minimum angle transformation with PyTorch, to enable automatic differentiation
 def transformation_matrix_tensor(q1, q2, syms):
 
-        syms_neg = -1*syms
-        syms = torch.cat((syms, syms_neg))
+        #syms_neg = -1*syms
+        #syms = torch.cat((syms, syms_neg))
 
-        syms = syms.to(torch.device('cuda:0'))
+        # VERIFIED THAT SYMS NEG GIVES THE SAME VALUES AGAIN.
+        B,H,W,C = q1.shape
+        syms = syms.to(q1.device)
 
-        inv = inverse_matrix_generate(q1) # only uses q1 to obtain tensor shape.
-        q1_inv = q1 * inv
-        q2_inv = q2 * inv
+        q1_inv = inverse_matrix_generate(q1) # only uses q1 to obtain tensor shape.
+        #q2_inv= inverse_matrix_generate(q2) # only uses q2 to obtain tensor shape.
+
+        # VERIFIED THAT REAL PART OF T1 AND T2 ARE THE SAME. SAME ROTATION ANGLE.
+
         T1 = matrix_hamilton_prod(q1_inv, q2)
-        T2 = matrix_hamilton_prod(q2_inv, q1)
+        #T2 = matrix_hamilton_prod(q2_inv, q1)
 
         T1_syms = outer_prod(T1, syms)
         T1_syms = T1_syms.view(-1, syms.shape[0], 4)
 
-        T2_syms = outer_prod(T2, syms)
-        T2_syms = T2_syms.view(-1, syms.shape[0], 4)
+        #T2_syms = outer_prod(T2, syms)
+        #T2_syms = T2_syms.view(-1, syms.shape[0], 4)
 
         ## Is it possible 
         # import pdb; pdb.set_trace()
-        T_syms = torch.cat((T1_syms, T2_syms), 1)
+        #T_syms = torch.cat((T1_syms, T2_syms), 1)
 
+        T_syms=T1_syms
         theta = 2*torch.arccos(T_syms[...,0])
         min_ind = theta.min(-1)[1] # still differentiable --> gradient flows through only for min.
         min_ind_flat = min_ind.view(-1)
@@ -220,10 +324,11 @@ def transformation_matrix_tensor(q1, q2, syms):
                 #import pdb; pdb.set_trace()
 
         T_min = T_min.reshape(q1.shape)
+        min_ind=min_ind.reshape(B,H,W)
 
         # q_loss_inv = matrix_hamilton_prod(q1_inv, T_min) ## Perhaps the error is here, can't backpropagate current inverse function applied to q_nn.
         # q_loss = q_loss_inv * inv
-        return T_min
+        return T_min, min_ind
 
 # Generate an "inverse-creating" tensor (will generate an inverse when multiplied with quaternion orientation tensor) required for the size of input matrix
 def inverse_matrix_generate(q):
@@ -273,22 +378,18 @@ def matrix_hamilton_prod(q1,q2):
 # Calculates validation loss, using the minimum angle transformation, but without tracking gradients.
 def validation_min_angle_transformation(q1, q2, syms):
 
-        # import pdb; pdb.set_trace()
-        device = torch.device('cuda:0')
+        device = q1.device
+        T = matrix_hamilton_prod(q1, inverse(q2.to(device)))
+        T_syms = outer_prod(T, syms)
+        T_syms = T_syms.view(-1, syms.shape[0], 4)
 
-        q1 = q1.to(device)
-        # q2 = q2.to(device)
-        T1 = matrix_hamilton_prod(q1, inverse(q2.to(device)))
-        T1_syms = outer_prod(T1, syms)
-        T1_syms = T1_syms.view(-1, syms.shape[0], 4)
+        # T2 = matrix_hamilton_prod(q2, inverse(q1.to(device)))
+        # T2_syms = outer_prod(T2, syms)
+        # T2_syms = T2_syms.view(-1, syms.shape[0], 4)
 
-        T2 = matrix_hamilton_prod(q2, inverse(q1.to(device)))
-        T2_syms = outer_prod(T2, syms)
-        T2_syms = T2_syms.view(-1, syms.shape[0], 4)
+        #T_syms = torch.cat((T1_syms, T2_syms), 1)
 
-        T_syms = torch.cat((T1_syms, T2_syms), 1)
-
-        theta = torch.arccos(T1_syms[...,0])
+        theta = torch.arccos(T_syms[...,0])
         min_ind = theta.min(-1)[1]
 
         # theta_min = theta[torch.arange(len(theta)), min_ind]
@@ -307,7 +408,7 @@ def validation_min_angle_transformation(q1, q2, syms):
         return theta
 
 def validation_rot_dist_approx_MAT_symmetry(q1, q2, syms):
-        device = torch.device('cuda:0')
+        device = torch.device('cuda')
 
         q1 = q1.to(device)
         q2 = q2.to(device)

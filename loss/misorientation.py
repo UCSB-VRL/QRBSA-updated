@@ -41,13 +41,13 @@ class MisOrientation(nn.Module):
         #import pdb; pdb.set_trace()
         if not self.include_consistency_loss:
             loss = self.act_loss(sr, hr)
-            loss = loss.mean()
+            loss = loss[0].mean()
             return loss
         else:
             loss, consistency_loss = self.act_loss(sr, hr)
 
             # check with mean and sum.
-            loss=loss.mean()
-            consistency_loss=consistency_loss.mean()
+            loss=loss
+            consistency_loss=consistency_loss
             return loss, consistency_loss
         return loss

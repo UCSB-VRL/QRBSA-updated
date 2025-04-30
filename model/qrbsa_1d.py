@@ -75,7 +75,6 @@ class PixelUnshuffle1D(torch.nn.Module):
         return x
 
 
-
 class Upsampler1D(nn.Module):
     def __init__(self, kernel_size, scale, n_feat, bn=False, act=False, bias=True, dropout_prob=0.2):
         super(Upsampler1D, self).__init__()
@@ -89,7 +88,7 @@ class Upsampler1D(nn.Module):
         #self.up_sample = nn.Upsample(scale_factor=2, mode='linear', align_corners=True)
         self.scale = scale
         self.n_feat = n_feat
-         
+
     def forward(self, x):
         x = x.permute(0,1,3,2)
         if (self.scale & (self.scale - 1)) == 0:    # Is scale = 2^n?

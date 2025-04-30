@@ -14,9 +14,6 @@ from prettytable import PrettyTable
 
 args = Argparser().args
 
-# hard coded for now
-args.include_consistency_loss = False
-
 #wandb.init(project="EBSDSR_Z_Upsampling_Networks_X2", config=args)
 checkpoint = utility.checkpoint(args)
 
@@ -74,10 +71,13 @@ if checkpoint.ok:
     model = model.Model(args, checkpoint)
     #import pdb; pdb.set_trace()
     count_parameters(model)
-            
+    
+    # HARCODING CONSISTENCY LOSS PARAMETER
+    args.include_consistency_loss = False
+
     loss = loss.Loss(args, checkpoint) if not args.test_only else None 
     t = Trainer(args, data_loader_train, data_loader_val, data_loader_test,  model, loss, checkpoint) 
-        
+    
     while not t.terminate():
         t.train()
     

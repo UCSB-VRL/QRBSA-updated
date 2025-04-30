@@ -15,3 +15,9 @@ IPF_mapping/FCC_Val_02-UPsa.dream3d
 #ignore pycache
 __pycache__/
 *.pyc
+
+#ignore folder superfibonacci
+superfibonacci/
+#ignore folder __pycache__
+__pycache__/
+#ignore folder 

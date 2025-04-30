@@ -29,6 +29,8 @@ print("args.exp_type", args.exp_type)
 #     key=get_key
 # )
 
+import pdb; pdb.set_trace() 
+
 # Updated file pattern to match the provided file path structure
 file_locs_hr = sorted(glob.glob(f'{npy_file_dir}/**/{args.data}*{args.section}*HR**.npy', recursive=True), key=get_key)
 file_locs_sr = sorted(glob.glob(f'{npy_file_dir}/**/{args.data}*{args.section}*SR**.npy', recursive=True), key=get_key)

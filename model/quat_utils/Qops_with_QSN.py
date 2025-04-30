@@ -47,7 +47,7 @@ class conv2d(nn.Module):
         torch.nn.init.normal_(self.conv.i_weight.data, std=0.02)
         torch.nn.init.normal_(self.conv.j_weight.data, std=0.02)
         torch.nn.init.normal_(self.conv.k_weight.data, std=0.02)
-        
+
         if spectral_normed:
             self.conv = Qspectral_norm(self.conv)
 
@@ -92,7 +92,6 @@ class QAttention(nn.Module):
         self.qkv = conv2d(dim, dim*3, kernel_size=1, stride=1, padding=0)
         self.qkv_dwconv = conv2d(dim*3, dim*3, kernel_size=3, stride=1, padding=1)
         self.project_out = conv2d(dim, dim, kernel_size=1, stride=1, padding=0)
-
 
     def forward(self, x):
         b,c,h,w = x.shape

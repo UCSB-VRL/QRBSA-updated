@@ -28,7 +28,7 @@ class Argparser:
         arg_parser.add_argument('--n_GPUs', type=int, default=1,
                                 help='number of GPUs')
         arg_parser.add_argument('--device', type=str,
-                                default= torch.device("cuda"),
+                                default= torch.device("cuda:2"),
                                 help='use the given device (cuda/cpu) for training')
         arg_parser.add_argument('--precision', type=str, default='single',
                                 choices=('single', 'half'),

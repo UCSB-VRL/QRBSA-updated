@@ -46,6 +46,6 @@ if checkpoint.ok:
 
     t = Trainer(args, data_loader_train, data_loader_val, data_loader_test, model, loss, checkpoint) 
     
-    t.test(is_trad_results=False)
+    t.test_with_transformation(is_trad_results=False)
 
 

@@ -25,7 +25,6 @@ import matplotlib.pyplot as plt
 from scipy.spatial.transform import Rotation as R
 import colorsys
 
-
 class EBSD_Ti64DIC_dataset(data.Dataset):
     """
     Custom Dataset compatible with torch.utils.data.DataLoader
@@ -143,6 +142,8 @@ class Misorientation_dist:
     def __init__(self, args, dist_type = 'rot_dist', act = None, syms_req = True):
         
         syms_type = args.syms_type
+        self.include_consistency_loss = args.include_consistency_loss
+        self.consistency_contribution = 0.2
 
         # NEW CHANGE ADDED.
         dist_type= args.dist_type
@@ -152,7 +153,7 @@ class Misorientation_dist:
         print(f'dist_type: {dist_type}  activation:{act}  symmetry type:{syms_type} Symmetry:{syms_req}') 
         print('+++++++++++++++++++++++++++++++++++++++++++++++++')
 
-        from mat_sci_torch_quats.losses import ActAndLoss, Loss
+        from mat_sci_torch_quats.losses import ActAndLoss, Loss, ConsitencyLoss
         from mat_sci_torch_quats.symmetries import hcp_syms, fcc_syms
 
         if syms_req:
@@ -163,10 +164,25 @@ class Misorientation_dist:
         else:
             syms = None
         
-        self.act_loss = ActAndLoss(act, Loss(dist_func=dist_type, syms=syms), grain_consistency_loss=False, quat_dim=-1)
-            
+        self.act_loss = ActAndLoss( act, 
+                                    Loss(dist_func=dist_type, syms=syms), 
+                                    include_consistency_loss=self.include_consistency_loss,
+                                    grain_consistency_loss=ConsitencyLoss(), 
+                                    quat_dim=-1
+                                )
+
     def __call__(self, sr, hr):
-        loss = self.act_loss(sr, hr)
+        
+        if self.include_consistency_loss:
+            loss, consistency_loss = self.act_loss(sr, hr)
+            # check with mean and sum.
+            loss=loss.mean()
+            consistency_loss=consistency_loss.mean()
+
+            # keeping 0.2 as constant for now.
+            return loss + self.consistency_contribution*consistency_loss
+        else:
+            loss = self.act_loss(sr, hr)
         return loss
 
 
