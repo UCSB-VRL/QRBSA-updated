@@ -16,10 +16,10 @@ def moving_average_update(statistic, curr_value, momentum):
     
     return  new_value.data
 
-
 class QuaternionBatchNorm2d(Module):
     r"""Applies a 2D Quaternion Batch Normalization to the incoming data.
         """
+
     def __init__(self, num_features, gamma_init=1., beta_param=True, momentum=0.1):
         super(QuaternionBatchNorm2d, self).__init__()
         self.num_features = num_features // 4
@@ -108,6 +108,7 @@ class QuaternionBatchNorm2d(Module):
                + ', beta=' + str(self.beta.shape) \
                + ', eps=' + str(self.eps.shape) + ')'
                
+
 def to_3d(x):
     # b, c, h, w --> b, (h w), c
     x = rearrange(x, 'b c h w -> b (h w) c')
@@ -116,7 +117,6 @@ def to_3d(x):
 def to_4d(x, h, w):
     x = rearrange(x, 'b (h w) c -> b c h w', h=h, w=w)
     return x
-
 
 class QuatLayerNorm(Module):
 

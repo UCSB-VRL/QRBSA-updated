@@ -1,7 +1,7 @@
 import torch
 from torch.utils.data import DataLoader
 import utility
-import model
+import model_new
 import loss
 import os
 import numpy as np
@@ -20,7 +20,6 @@ checkpoint = utility.checkpoint(args)
 torch.manual_seed(2025)
 np.random.seed(2025)
 random.seed(2025)
-
 
 def count_parameters(model):
     table = PrettyTable(["Modules", "Parameters"])
@@ -48,7 +47,7 @@ if checkpoint.ok:
 
     print("LR Train Path:", lr_train_data_path)
     print("HR Train Path:", hr_train_data_path)
-     
+    
     lr_val_data_path = f'/{args.input_dir}/{args.val_lr_data_dir}' 
     hr_val_data_path = f'/{args.input_dir}/{args.val_hr_data_dir}' 
 
@@ -68,15 +67,15 @@ if checkpoint.ok:
 
     data_loader_test = None
 
-    model = model.Model(args, checkpoint)
+    model_new = model_new.Model(args, checkpoint)
     #import pdb; pdb.set_trace()
-    count_parameters(model)
+    count_parameters(model_new)
     
     # HARCODING CONSISTENCY LOSS PARAMETER
     args.include_consistency_loss = False
 
     loss = loss.Loss(args, checkpoint) if not args.test_only else None 
-    t = Trainer(args, data_loader_train, data_loader_val, data_loader_test,  model, loss, checkpoint) 
+    t = Trainer(args, data_loader_train, data_loader_val, data_loader_test,  model_new, loss, checkpoint) 
     
     while not t.terminate():
         t.train()

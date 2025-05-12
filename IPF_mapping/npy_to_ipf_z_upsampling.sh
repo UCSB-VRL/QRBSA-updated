@@ -17,7 +17,7 @@
 # 3. Run the script
 
 current_dir=$(pwd)
-modelname="qrbsa_SR_random_versions_bs1_loss2"
+modelname="DEBUG_SESSION"
 exp_type="minimum_angle_transform"
 modeltoload="model_best"
 filetype="HR"

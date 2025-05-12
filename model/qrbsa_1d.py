@@ -2,9 +2,9 @@ import torch
 import torch.nn as nn
 import math
 
-from model.quat_utils.Qops_with_QSN import conv2d, Residual_SA, QBatchNorm2d
+from model.quat_utils.Qops_with_QSN import conv2d, Residual_SA
 from einops import rearrange 
-from model.quat_utils.quaternion_ops import QuaternionUpsampler1D
+
 
 def make_model(args):
     return QRBSA_1D(args)
@@ -24,7 +24,7 @@ class TransposedConvUpsampler1D(nn.Module):
 
     def forward(self, x):
         return self.transposed_conv(x)
-
+    
 class PixelShuffle1D(torch.nn.Module):
     """
     1D pixel shuffler. https://arxiv.org/pdf/1609.05158.pdf
@@ -75,6 +75,36 @@ class PixelUnshuffle1D(torch.nn.Module):
         return x
 
 
+class Upsampler1D_pixel_shuffle(nn.Module):
+    def __init__(self, kernel_size, scale, n_feat, bn=False, act=False, bias=True):
+        super(Upsampler1D_pixel_shuffle, self).__init__()
+
+        self.conv_layer = conv2d(n_feat, 2*n_feat, kernel_size = kernel_size, stride = 1, padding = kernel_size //2)
+        self.pixel_shuffle = PixelShuffle1D(2) 
+        #self.up_sample = nn.Upsample(scale_factor=2, mode='linear', align_corners=True)
+      
+        self.scale = scale
+        self.n_feat = n_feat
+
+    def forward(self, x):
+        x = x.permute(0,1,3,2)
+        if (self.scale & (self.scale - 1)) == 0:    # Is scale = 2^n?
+            for _ in range(int(math.log(self.scale, 2))):
+                #import pdb; pdb.set_trace()
+                bsize, ch, h, w = x.shape
+                x = self.conv_layer(x)
+                #x = rearrange(x, 'd0 d1 d2 d3 -> d0 d1 (d2 d3)')
+                x = self.pixel_shuffle(x)
+                #x = rearrange(x, 'd0 d1 (d2 d3) -> d0 d1 d2 d3', d0=bsize, d1=ch, d2=h, d3=2*w)
+                
+            x = x.permute(0,1,3,2) 
+            return x
+                      
+        else:
+            raise NotImplementedError
+
+
+### TRANSPOSE CONV BASED UPSAMPLER ####
 class Upsampler1D(nn.Module):
     def __init__(self, kernel_size, scale, n_feat, bn=False, act=False, bias=True, dropout_prob=0.2):
         super(Upsampler1D, self).__init__()
@@ -93,19 +123,19 @@ class Upsampler1D(nn.Module):
         x = x.permute(0,1,3,2)
         if (self.scale & (self.scale - 1)) == 0:    # Is scale = 2^n?
             for _ in range(int(math.log(self.scale, 2))):
-                
+                #import pdb; pdb.set_trace()
                 bsize, ch, h, w = x.shape
                 #print(x.shape)
                 x = self.conv_layer1(x)
                 #x = self.dropout(x)
                 #x = rearrange(x, 'd0 d1 d2 d3 -> d0 d1 (d2 d3)')
-                #x = self.conv_layer2(x)
+                x = self.conv_layer2(x)
                 #x = self.dropout(x)
                 
                 #import pdb; pdb.set_trace()
                 #print(x.shape)
-                x = self.pixel_shuffle(x)
-                #x= self.transposed_conv(x)
+                #x = self.pixel_shuffle(x)
+                x= self.transposed_conv(x)
                 #print(x.shape)
                 
                 #x = self.dropout(x)
@@ -131,12 +161,12 @@ class QRBSA_1D(nn.Module):
         act = nn.ReLU(True)
 
         m_head = [conv2d(args.n_colors, n_feats,  kernel_size = kernel_size, stride = 1, padding=kernel_size//2)]
-        
+
         m_body = [Residual_SA(n_feats, n_feats)  for _ in range(n_resblocks)]
+
         m_body.append(conv2d(n_feats, n_feats,  kernel_size = kernel_size, stride = 1, padding=kernel_size//2))
-        
+
         m_tail = [
-            #QuaternionUpsampler1D(kernel_size, scale, n_feats, act=False),
             Upsampler1D(kernel_size, scale, n_feats, act=False),
             conv2d(n_feats, args.n_colors,  kernel_size = kernel_size, stride = 1, padding=kernel_size //2)
         ]
@@ -145,44 +175,14 @@ class QRBSA_1D(nn.Module):
         self.body = nn.Sequential(*m_body)
         self.tail = nn.Sequential(*m_tail)
 
-    def normalize_quaternion(self, q, dim=1):
-        """Ensure unit quaternion norm after batch normalization."""
-        norm = torch.sqrt(q.pow(2).sum(dim, keepdim=True) + 1e-8)
-        return q / norm
-
     def forward(self, x):
+        x = self.head(x)
 
-        #if x is nan or inf, then break.
-        if torch.isnan(x).any() or torch.isinf(x).any():
-            print('x is nan or inf')
-            import pdb; pdb.set_trace()
-        
-        x_head = self.head(x)
-        if torch.isnan(x).any() or torch.isinf(x).any():
-            print('x is nan or inf')
-            import pdb; pdb.set_trace()
-
-        res = self.body(x_head)
-        if torch.isnan(x).any() or torch.isinf(x).any():
-            print('x is nan or inf')
-            import pdb; pdb.set_trace()
-
-        res += x_head
-        if torch.isnan(x).any() or torch.isinf(x).any():
-            print('x is nan or inf')
-            import pdb; pdb.set_trace()
+        res = self.body(x)
+        res += x
         
         x = self.tail(res) 
-        if torch.isnan(x).any() or torch.isinf(x).any():
-            print('x is nan or inf')
-            import pdb; pdb.set_trace()
         
-        # Addition to normalize the quaternion. SEE if this is necessary.
-        #x= self.normalize_quaternion(x, dim=1)
-        if torch.isnan(x).any() or torch.isinf(x).any():
-            print('x is nan or inf')
-            import pdb; pdb.set_trace()
-
         return x
 
     def load_state_dict(self, state_dict, strict=True):

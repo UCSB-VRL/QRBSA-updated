@@ -80,9 +80,8 @@ class Model(nn.Module):
                 target.state_dict(),
                 os.path.join(apath, 'model', 'model_best.pt')
             )
+        
         else:
-            # passing now due to memory.
-            pass
             torch.save(
                 target.state_dict(),
                 os.path.join(apath, 'model', 'model_{}.pt'.format(epoch))

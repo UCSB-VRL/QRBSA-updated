@@ -89,11 +89,7 @@ class Loss:
                         if q2 is not None: q2 = q2[...,None,:]
                         dists = self.dist_func(q1_w_syms,q2)
                         dist_min = dists.min(-1)[0]
-                        return (dist_min, ())     
-                                # T_series_min = rot_dist(q1, q2, self.syms)
-                                # zero_broadcast_tensor = torch.Tensor([1,0,0,0])
-                                # zero_broadcast_tensor = zero_broadcast_tensor.reshape(1,1,1,4) 
-                                # return self.dist_func(T_min, zero_broadcast_tensor)
+                        return (dist_min, ())
 
                 elif self.dist_type == 'valid_symmHR_expand': 
                         # import pdb; pdb.set_trace()

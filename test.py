@@ -2,7 +2,7 @@ import torch
 from torch.utils.data import DataLoader
 #from torch import optim
 import utility
-import model
+import model_new
 import loss
 from utility import  EBSD_Ti64DIC_Test_dataset, EBSD_Ti64DIC_dataset
 
@@ -37,15 +37,16 @@ if checkpoint.ok:
                              shuffle=False, drop_last=False)
 
         
-    model = model.Model(args, checkpoint)
+    model_new = model_new.Model(args, checkpoint)
         
     loss = loss.Loss(args, checkpoint) if not args.test_only else None 
     
     data_loader_train = None
     data_loader_val = None
 
-    t = Trainer(args, data_loader_train, data_loader_val, data_loader_test, model, loss, checkpoint) 
+    t = Trainer(args, data_loader_train, data_loader_val, data_loader_test, model_new, loss, checkpoint) 
     
+    #t.test(is_trad_results=False)
     t.test_with_transformation(is_trad_results=False)
 
 

@@ -27,7 +27,7 @@ def get_key(fp):
 file_locs = sorted(glob.glob(f'{npy_file_dir}/{args.data}*HR**.npy'), key=get_key)
 file_locs += sorted(glob.glob(f'{npy_file_dir}/{args.data}*SR**.npy'), key=get_key)
 
-file_locs = glob.glob(f'{npy_file_dir}/**/*.npy', recursive=True)
+#file_locs = glob.glob(f'{npy_file_dir}/**/*.npy', recursive=True)
 
 total_file = len(file_locs)
 print("total files", total_file)    
@@ -55,7 +55,7 @@ for i, file_loc in enumerate(file_locs):
    
     basename = os.path.basename(file_loc)
     filename = os.path.splitext(basename)[0]
-   
+    #import pdb; pdb.set_trace()
     image = Image.fromarray(img[i,:,:,:], "RGB")
     print("the path to save is", f'{npy_file_dir}/{args.data}/Dream3D/{filename}.png')
     image.save(f'{npy_file_dir}/{args.data}/Dream3D/{filename}.png')

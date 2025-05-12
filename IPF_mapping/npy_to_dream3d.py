@@ -43,8 +43,15 @@ print("file locs", file_locs)
 arr_list = []
 for file_loc in file_locs:
     arr = np.load(file_loc)
-    print(arr.shape)
+    print(file_loc,arr.shape)
     arr_list.append(arr)
+
+# # --- make every slice the same size (use the smallest height/width) ---
+min_h = min(a.shape[0] for a in arr_list)
+min_w = min(a.shape[1] for a in arr_list)
+
+arr_list = [a[:min_h, :min_w] for a in arr_list]     # trim bottom / right
+
 
 # Create a NumPy object array to hold arrays of different shapes
 loaded_npy = np.array(arr_list)
@@ -53,6 +60,7 @@ loaded_npy = np.array(arr_list)
 loaded_npy = np.asarray(arr_list)
 loaded_npy = np.float32(loaded_npy)
 
+# Check the shape of the loaded numpy array
 if args.section == 'X_normal' or args.section == 'x_normal':
     loaded_npy = np.moveaxis(loaded_npy, 0, -2)
 elif args.section == 'Y_normal' or args.section == 'y_normal':
@@ -63,7 +71,6 @@ d3source = h5py.File(d3_sourceName, 'r')
 print("d3 source name", d3_sourceName)
 
 # The path for the output Dream3D file being written.  
-
 save_dir = f'{args.exp_dir_path}/{args.model_name}/results/{args.dataset_type}_{args.model_to_load}'
 save_path = f'{save_dir}/{args.data}/Dream3D'
 print("Save path:", save_path)
