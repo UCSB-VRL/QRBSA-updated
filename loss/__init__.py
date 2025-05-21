@@ -89,9 +89,11 @@ class Loss(nn.modules.loss._Loss):
     def forward(self, sr, hr):
         #import pdb; pdb.set_trace()
         losses = []
+        cnt= 0
+        summer=0
         for i, l in enumerate(self.loss):
             if l['function'] is not None:
-                consistency_weight = 0.2
+                consistency_weight = 0
                 if self.include_consistency_loss:
                     loss, consistency_loss = l['function'](sr, hr)
                     effective_loss = l['weight'] * loss + consistency_weight*l['weight'] * consistency_loss
@@ -99,7 +101,9 @@ class Loss(nn.modules.loss._Loss):
                     loss = l['function'](sr, hr)
                     effective_loss = l['weight'] * loss
                 losses.append(effective_loss)
-                self.log[-1, i] += effective_loss.item()
+                summer += effective_loss.item()
+                cnt+= 1
+                self.log[-1, i] = float(summer/ cnt)
             elif l['type'] == 'DIS':
                 self.log[-1, i] += self.loss[i - 1]['function'].loss
 

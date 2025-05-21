@@ -6,6 +6,7 @@
     {
         "version": "0.2.0",
         "configurations": [
+            
             {
                 "name": "Python Debugger: Train Model",
                 "type": "debugpy",
@@ -13,9 +14,10 @@
                 "program": "${workspaceFolder}/main.py",
                 "console": "integratedTerminal",
                 "env": { "CUDA_VISIBLE_DEVICES": "1" },
+                // "python": "${workspaceFolder}/.venv/bin/python",  // fallback path
                 "args": [
-                    "--dist_type", "rot_dist_approx_without_symm",
-                    "--input_dir", "/data/home/umang/Materials/Materials_data_mount/fz_reduced/Open_718_Z_Upsampling",
+                    "--dist_type", "minimum_angle_transformation",
+                    "--input_dir", "/data/umang/materials/fz_reduced/Open_718_Z_Upsampling",
                     "--hr_data_dir", "Train/HR_Images/preprocessed_imgs_1D",
                     "--val_lr_data_dir", "Val/LR_Images/X4/preprocessed_imgs_1D",
                     "--val_hr_data_dir", "Val/HR_Images/preprocessed_imgs_1D",
@@ -27,10 +29,10 @@
                     "--save", "DEBUG_SESSION",
                     "--loss", "1*MisOrientation",
                     "--patch_size", "64",
-                    "--batch_size", "1",
+                    "--batch_size", "4",
                     "--scale", "4",
-                    "--val_freq", "2",
-                    "--save_model_freq", "150",
+                    "--val_freq", "1",
+                    "--save_model_freq", "100",
                     "--syms_type", "FCC",
                     "--syms_req",
                     "--prog_patch",
@@ -53,7 +55,7 @@
                     "--patch_size", "64",
                     "--n_resblocks", "10",
                     "--n_resgroups", "10",
-                    "--n_feats", "128",
+                    "--n_feats", "256",
                     "--n_colors", "4",  
                     "--save", "DEBUG_SESSION",
                     "--resume", "-1",

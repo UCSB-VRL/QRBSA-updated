@@ -1,7 +1,7 @@
 #!/bin/sh
 
-python test.py \
-    --input_dir '/data/home/umang/Materials/Materials_data_mount/fz_reduced/Open_718_Z_Upsampling' \
+CUDA_VISIBLE_DEVICES=7 python test.py \
+    --input_dir '/data/umang/materials/fz_reduced/Open_718_Z_Upsampling' \
     --model 'qrbsa_1d' \
     --patch_size 256 \
     --n_resblocks 10 \

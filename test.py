@@ -2,9 +2,10 @@ import torch
 from torch.utils.data import DataLoader
 #from torch import optim
 import utility
-import model_new
+import model
 import loss
 from utility import  EBSD_Ti64DIC_Test_dataset, EBSD_Ti64DIC_dataset
+from prettytable import PrettyTable
 
 from argparser import Argparser
 import os
@@ -13,6 +14,17 @@ from trainer import Trainer
 args = Argparser().args
 checkpoint = utility.checkpoint(args)
 
+def count_parameters(model):
+    table = PrettyTable(["Modules", "Parameters"])
+    total_params = 0
+    for name, parameter in model.named_parameters():
+        if not parameter.requires_grad: continue
+        params = parameter.numel()
+        table.add_row([name, params])
+        total_params+=params
+    print(table)
+    print(f"Total Trainable Params: {total_params}")
+    return total_params
 
 if checkpoint.ok:
    
@@ -37,14 +49,18 @@ if checkpoint.ok:
                              shuffle=False, drop_last=False)
 
         
-    model_new = model_new.Model(args, checkpoint)
-        
+    model = model.Model(args, checkpoint)
+
+    import pdb; pdb.set_trace()
+    count_parameters(model)
+
+
     loss = loss.Loss(args, checkpoint) if not args.test_only else None 
     
     data_loader_train = None
     data_loader_val = None
 
-    t = Trainer(args, data_loader_train, data_loader_val, data_loader_test, model_new, loss, checkpoint) 
+    t = Trainer(args, data_loader_train, data_loader_val, data_loader_test, model, loss, checkpoint) 
     
     #t.test(is_trad_results=False)
     t.test_with_transformation(is_trad_results=False)

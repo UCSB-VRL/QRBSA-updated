@@ -1,7 +1,7 @@
 import torch
 from torch.utils.data import DataLoader
 import utility
-import model_new
+import model
 import loss
 import os
 import numpy as np
@@ -54,7 +54,7 @@ if checkpoint.ok:
     print("LR Val Path:", lr_val_data_path)
     print("HR Val Path:", hr_val_data_path)
      
-
+    
     dataset_train = EBSD_Ti64DIC_dataset(args, lr_train_data_path, hr_train_data_path, upsample_2d=args.upsample_2d) 
     dataset_val = EBSD_Ti64DIC_dataset(args, lr_val_data_path, hr_val_data_path, is_Train=False) 
 
@@ -67,15 +67,15 @@ if checkpoint.ok:
 
     data_loader_test = None
 
-    model_new = model_new.Model(args, checkpoint)
-    #import pdb; pdb.set_trace()
-    count_parameters(model_new)
+    model = model.Model(args, checkpoint)
+    import pdb; pdb.set_trace()
+    count_parameters(model)
     
     # HARCODING CONSISTENCY LOSS PARAMETER
     args.include_consistency_loss = False
 
     loss = loss.Loss(args, checkpoint) if not args.test_only else None 
-    t = Trainer(args, data_loader_train, data_loader_val, data_loader_test,  model_new, loss, checkpoint) 
+    t = Trainer(args, data_loader_train, data_loader_val, data_loader_test,  model, loss, checkpoint) 
     
     while not t.terminate():
         t.train()

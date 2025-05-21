@@ -22,7 +22,7 @@ class Model(nn.Module):
         self.n_GPUs = args.n_GPUs
         self.save_models = args.save_models
 
-        import pdb; pdb.set_trace()
+        #import pdb; pdb.set_trace()
         module = import_module('model.' + args.model.lower())
         self.model = module.make_model(args).to(self.device)
         if args.precision == 'half':
@@ -67,7 +67,8 @@ class Model(nn.Module):
     def state_dict(self, **kwargs):
         target = self.get_model()
         return target.state_dict(**kwargs)
-  
+
+   
     def save(self, apath, epoch, is_best=False):
         target = self.get_model()
         torch.save(
@@ -79,13 +80,15 @@ class Model(nn.Module):
                 target.state_dict(),
                 os.path.join(apath, 'model', 'model_best.pt')
             )
-        
         else:
+            # passing now due to memory.
+            pass
             torch.save(
                 target.state_dict(),
                 os.path.join(apath, 'model', 'model_{}.pt'.format(epoch))
             )
 
+ 
     def load(self, apath, pre_train='.', resume=-1, cpu=False):
         #import pdb; pdb.set_trace()
         if cpu:

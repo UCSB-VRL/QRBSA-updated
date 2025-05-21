@@ -95,7 +95,6 @@ def hamilton_product_torch(q1, q2):
     # Stack them back along last dimension
     return torch.stack([ro, xo, yo, zo], dim=-1)
 
-
 class Trainer():
     def __init__(self, args, loader_train, loader_val, loader_test, model, loss, ckp):
         self.args = args
@@ -114,7 +113,7 @@ class Trainer():
         self.optimizer = utility.make_optimizer(args, self.model)
         #self.scheduler = utility.make_scheduler(args, self.optimizer)
         self.scheduler = utility.make_warmup_scheduler(args, self.optimizer)
-        self.T =4
+        self.T =10
         
 
         if self.args.load != '.':
@@ -139,15 +138,22 @@ class Trainer():
         #   lr_reshaped => (B,HW,4) => (B,1,HW,4)
         #   quats_10 => (T,4) => (1,T,1,4)
         lr_reshaped = lr_reshaped[:, None, :, :]   # => shape (B,1,HW,4)
-        random_quats_conj = random_quats_conj[None, :, None, :] # shape => (1,10,1,4) # => shape (10,4) => (1,10,1,4)
+        random_quats_conj = random_quats_conj[:, None, :] # shape => (1,10,1,4) # => shape (10,4) => (1,10,1,4)
 
         lr_reshaped = scalar_last2first(lr_reshaped)
 
         lr_reshaped= lr_reshaped[..., None, :]# shape => (B,48,1,4)
         lr_48 = hamilton_product_torch(syms_ext, lr_reshaped)  # shape => (B,48,4)
         
+        random_quats_conj= random_quats_conj.clone()
+        random_quats_conj = random_quats_conj.squeeze(1).view(B, self.T, 1, 4)
+        assert random_quats_conj.shape == (B, self.T, 1, 4), \
+            f"random_quats_conj must be (B,10,1,4); got {tuple(random_quats_conj.shape)}"
+        assert lr_48.squeeze().view(B,1,-1,4).shape == (B,1, 48*H*W, 4), \
+            f"lr_48 must be (B,1,48*HW,4); got {tuple(lr_48.squeeze().view(B,1,-1,4).shape)}"
+        
         # trandform all 48 orientations with q*
-        out_48=hamilton_product_torch(random_quats_conj, lr_48.squeeze().view(-1,4))
+        out_48=hamilton_product_torch(random_quats_conj, lr_48.squeeze().view(B,1,-1,4))
         out_48= out_48.reshape(B*self.T, H*W, -1, 4)
 
         # select the quaternions with the maximum value along dim=-2
@@ -188,15 +194,22 @@ class Trainer():
         #   lr_reshaped => (B,HW,4) => (B,1,HW,4)
         #   quats_10 => (T,4) => (1,T,1,4)
         hr_reshaped = hr_reshaped[:, None, :, :]   # => shape (B,1,HW,4)
-        random_quats_conj = random_quats_conj[None, :, None, :] # shape => (1,10,1,4) # => shape (10,4) => (1,10,1,4)
+        random_quats_conj = random_quats_conj[:, None, :] # shape => (1,10,1,4) # => shape (10,4) => (1,10,1,4)
 
         hr_reshaped = scalar_last2first(hr_reshaped)
 
         hr_reshaped= hr_reshaped[..., None, :]# shape => (B,48,1,4)
         hr_48 = hamilton_product_torch(syms_ext, hr_reshaped)  # shape => (B,48,4)
         
+        random_quats_conj= random_quats_conj.clone()
+        random_quats_conj = random_quats_conj.squeeze(1).view(B, self.T, 1, 4)
+        assert random_quats_conj.shape == (B, self.T, 1, 4), \
+            f"random_quats_conj must be (B,10,1,4); got {tuple(random_quats_conj.shape)}"
+        assert hr_48.squeeze().view(B,1,-1,4).shape == (B,1, 48*H*W, 4), \
+            f"lr_48 must be (B,1,48*HW,4); got {tuple(hr_48.squeeze().view(B,1,-1,4).shape)}"
+        
         # trandform all 48 orientations with q*
-        out_48=hamilton_product_torch(random_quats_conj, hr_48.squeeze().view(-1,4))
+        out_48=hamilton_product_torch(random_quats_conj, hr_48.squeeze().view(B,1,-1,4))
         out_48= out_48.reshape(B*self.T, H*W, -1, 4)
 
         # select the quaternions with the maximum value along dim=-2
@@ -226,6 +239,7 @@ class Trainer():
         return hr_transformed
         
     def prepare_sr_transformed(self, sr, random_quats, syms_ext):
+
         B, C, H, W = sr.shape  # here B includes batch size and T, C=4
         # Scalar last to first for sr for transformation
         sr = scalar_last2first(sr.permute(0,2,3,1))  # shape (B*T, H, W, 4)
@@ -310,10 +324,10 @@ class Trainer():
             sr = self.model(lr_transformed, self.scale)
             # Normalize sr 
             sr = sr / (torch.norm(sr, dim=1, keepdim=True) + 1e-12)
-
+            
             _, C,H,W = sr.shape 
             # GET SR_TRANSFORMED from SR
-            random_quats = random_quats[:,None, :].expand(B*T, -1, 4)
+            random_quats = random_quats.repeat(B, 1).view(B*T, 1, 4)
             sr_transformed = self.prepare_sr_transformed(sr, random_quats, syms_ext=syms_ext)
         
             # ✅ Ensure `sr` has gradients
@@ -370,7 +384,7 @@ class Trainer():
             #    loss=loss+consistency_loss
 
             # Choose which loss. 
-            loss= loss1
+            loss= loss2
 
             if batch % 5 == 0:
                 print("Epoch:", epoch)
@@ -382,7 +396,7 @@ class Trainer():
                 import pdb; pdb.set_trace()
                 print(f'Skipping batch {batch + 1} due to NaN/Inf loss.')
                 continue  # Skip this batch
-                        
+            
             # **Ensure loss is within the allowed threshold**
             if loss.item() < self.args.skip_threshold * self.error_last:
                 assert loss.grad_fn is not None, "❌ Loss is detached before backward!"  # Debugging check
@@ -443,6 +457,7 @@ class Trainer():
                     lr, hr = common.get_prog_patch_1D(hr, epoch, self.args.scale) 
             
                 B, C, H, W = lr.shape  # C=4
+               
                 # pull 10 random quaternions from self.random_fz_quats
                 #import pdb; pdb.set_trace()
                 random_indices = np.random.choice(self.random_fz_quats.shape[0], self.T, replace=False)
@@ -475,11 +490,14 @@ class Trainer():
                 sr = self.model(lr_transformed, self.scale)
                 # Normalize sr 
                 sr = sr / (torch.norm(sr, dim=1, keepdim=True) + 1e-12)
+                # get the first sr == sr[0]
+                sr_random_0 = sr[0].unsqueeze(0)
 
                 _, C,H,W = sr.shape 
                 # GET SR_TRANSFORMED from SR
                 random_quats = random_quats[:,None, :].expand(B*T, -1, 4)
                 sr_transformed = self.prepare_sr_transformed(sr, random_quats, syms_ext=syms_ext)
+                sr_random_0_transformed = sr_transformed[0].unsqueeze(0)
 
                 # ✅ Ensure `sr` has gradients
                 sr_transformed.requires_grad_(True)
@@ -530,65 +548,20 @@ class Trainer():
             print("--------------------Saving Model----------------------------")
             self.ckp.save(self, epoch)
 
-        # Take a random sample from self.loader_val.
-        import random
-        rand_idx = random.randint(0, 190)
-        sample = self.loader_val.dataset[rand_idx]
-        lr, hr, filename_lr, filename_hr = sample
-        filenames =[filename_hr]
-        lr= lr.unsqueeze(0)  # Add batch dimension
-        hr= hr.unsqueeze(0)  # Add batch dimension
-
-        lr, hr = self.prepare([lr, hr])
-        # Ensure model is on the correct device (either GPU or CPU)
-        device = next(self.model.parameters()).device  # This gets the device the model is on (e.g., cuda or cpu)
-
-        # Move the inputs to the same device as the model (GPU or CPU)
-        lr, hr = lr.to(device), hr.to(device)
-
-        sr = self.model(lr, self.scale)
-
-        # Process the super-resolved output
-        if isinstance(sr, list):
-            sr = self.post_process(sr[0], hr.shape)
-        else:
-            sr = self.post_process(sr, hr.shape)
-        B, C, H, W = sr.shape  # here B includes batch size and T, C=4
-        import pdb; pdb.set_trace()
-        sr_transformed = self.prepare_sr_transformed(sr, random_quats, syms_ext=syms_ext)
-
-        ##############################################################################
-        # take the median pooling of sr along T dimension
-        median_indices= torch.median(sr_transformed.view(B, T, 4, -1)[..., -1, :], dim=1)[1]
-        median_indices = median_indices.unsqueeze(1).expand(-1, C, -1).reshape(B, 1, C, -1) 
-        
-        # take the mode pooling of sr along T dimension.
-        mode_indices= torch.mode(sr_transformed.view(B, T, 4, -1)[..., -1, :], dim=1)[1] 
-        mode_indices = mode_indices.unsqueeze(1).expand(-1, C, -1).reshape(B, 1, C, -1) 
-
-        sr_transformed = sr_transformed.reshape(B,T, C, -1)
-        sr_transformed= torch.gather(sr_transformed, dim=1, index=median_indices)  
-        sr_transformed = sr_transformed / (torch.norm(sr_transformed, dim=2, keepdim=True) + 1e-12)
-        sr_transformed= sr_transformed.reshape(B, C, H, W)
-        
-        # Permute the tensor dimensions
-        hr = hr.permute(0, 2, 3, 1)
-        lr = lr.permute(0, 2, 3, 1)
-        sr = sr.permute(0, 2, 3, 1)
-        sr_transformed = sr_transformed.permute(0, 2, 3, 1)
-
-        lr = lr.detach().cpu()
-        hr = hr.detach().cpu()
+        lr= lr.permute(0,2,3,1).detach().cpu()
+        hr= hr.permute(0,2,3,1).detach().cpu()
         sr = sr.detach().cpu()
-        sr_transformed = sr_transformed.detach().cpu()
-        import pdb; pdb.set_trace()
+        sr_transformed= sr_transformed.permute(0,2,3,1).detach().cpu()
+        sr_random_0 = sr_random_0.permute(0,2,3,1).detach().cpu()
+        sr_random_0_transformed = sr_random_0_transformed.permute(0,2,3,1).detach().cpu()
+
         # Now, pass the tensors to the save_results function
-        save_list = [lr, hr, sr_transformed]
-        modes = ['LR', 'HR', f'SR_transformed_{self.args.model}_{self.args.model_to_load}_{self.args.dist_type}']
+        save_list = [lr, hr, sr_random_0, sr_transformed, sr_random_0_transformed]
+        modes = ['LR', 'HR', f'SR_random0_{self.args.model}_{self.args.model_to_load}_{self.args.dist_type}'] +['SR_transformed', 'SR_transformed_random0']
 
         # Save results if required
         if self.args.save_results:
-            self.ckp.save_results(filenames, save_list, modes, self.scale, epoch=self.args.model_to_load, dataset='Val')
+            self.ckp.save_results(filename_hr, save_list, modes, self.scale, epoch=self.args.model_to_load, dataset='Val')
 
     def test(self, is_trad_results= False):
         #import pdb; pdb.set_trace()
@@ -635,7 +608,7 @@ class Trainer():
                 hr = hr.permute(0,2,3,1)
                 lr = lr.permute(0,2,3,1)
                 sr = sr.permute(0,2,3,1)
-
+ 
                 save_list = [lr, hr, sr] + sr_up_trad
                 #import pdb; pdb.set_trace()
                 modes = ['LR', 'HR', f'SR_{self.args.model}_{self.args.model_to_load}_{self.args.dist_type}'] + modes   
@@ -737,6 +710,8 @@ class Trainer():
                 # prepare hr_transformed
                 hr_transformed= self.prepare_hr_transformed(hr, random_quats_conj, syms_ext=syms_ext)
                 B, C, H, W = hr_transformed.shape  # C=4
+
+                # prepare hr_transformed_back
                 hr_transformed_back =hr_transformed.clone()
                 hr_transformed_back = scalar_last2first(hr_transformed_back.permute(0,2,3,1))
                 hr_transformed_back = hamilton_product_torch(random_quats, hr_transformed_back.view(B,-1, 4))
@@ -757,12 +732,10 @@ class Trainer():
                 hr_transformed_back = scalar_first2last(hr_transformed_back)
                 # Step 5) Reshape back => (B*T,4,H,W)
                 hr_transformed_back = hr_transformed_back.reshape(B, H, W, 4).permute(0,3,1,2)
-
-
-                #import pdb; pdb.set_trace() 
+ 
                 hr = hr.permute(0,2,3,1)
                 lr = lr.permute(0,2,3,1)
-                sr_0 = sr[0].unsqueeze(0).permute(0,2,3,1)
+                sr_0 = sr[0].unsqueeze(0)
                 hr_transformed_0 = hr_transformed[0].unsqueeze(0).permute(0,2,3,1)
                 hr_transformed_1 = hr_transformed[1].unsqueeze(0).permute(0,2,3,1)
                 lr_transformed_0 = lr_transformed[0].unsqueeze(0).permute(0,2,3,1)

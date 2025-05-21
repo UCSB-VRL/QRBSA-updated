@@ -47,12 +47,15 @@ class conv2d(nn.Module):
         torch.nn.init.normal_(self.conv.i_weight.data, std=0.02)
         torch.nn.init.normal_(self.conv.j_weight.data, std=0.02)
         torch.nn.init.normal_(self.conv.k_weight.data, std=0.02)
-        
+
         if spectral_normed:
             self.conv = Qspectral_norm(self.conv)
 
     def forward(self, input):
         out = self.conv(input)
+        # if out is nan or zero, pdb
+        if torch.isnan(out).any() or out.sum() == 0:
+            import pdb; pdb.set_trace()
         return out
 
 
@@ -64,11 +67,8 @@ class QFeedForward(nn.Module):
 
         #import pdb; pdb.set_trace()
         hidden_features = int(dim*ffn_expansion_factor)
-
         self.project_in = conv2d(dim, hidden_features*2, kernel_size=1, stride=1, padding=0)
-
         self.dwconv = conv2d(hidden_features*2, hidden_features*2, kernel_size=3, stride=1, padding=1)
-
         self.project_out = conv2d(hidden_features, dim, kernel_size=1, stride=1, padding=0)
 
     def forward(self, x):
@@ -79,10 +79,7 @@ class QFeedForward(nn.Module):
         x = self.project_out(x)
         return x
 
-
-
 ##########################################################################
-
 
 ## Multi-DConv Head Transposed Self-Attention (MDTA)
 class QAttention(nn.Module):
@@ -95,7 +92,6 @@ class QAttention(nn.Module):
         self.qkv = conv2d(dim, dim*3, kernel_size=1, stride=1, padding=0)
         self.qkv_dwconv = conv2d(dim*3, dim*3, kernel_size=3, stride=1, padding=1)
         self.project_out = conv2d(dim, dim, kernel_size=1, stride=1, padding=0)
-        
 
     def forward(self, x):
         b,c,h,w = x.shape
@@ -114,7 +110,6 @@ class QAttention(nn.Module):
         attn = attn.softmax(dim=-1)
 
         out = (attn @ v)
-        
         out = rearrange(out, 'b head c (h w) -> b (head c) h w', head=self.num_heads, h=h, w=w)
 
         out = self.project_out(out)
@@ -135,8 +130,6 @@ class QTransformerBlock(nn.Module):
         x = x + self.ffn(self.norm2(x))
         #x = x + self.attn(x)
         #x = x + self.ffn(x)
-        #x= self.attn(self.norm1(x))
-        #x = self.ffn(self.norm2(x))
 
         return x  
 
@@ -147,8 +140,11 @@ class Residual_SA(nn.Module):
  
         #import pdb; pdb.set_trace() 
         self.conv1 = conv2d(in_channels, in_channels, kernel_size = kernel, padding = 1, stride = stride,  spectral_normed = spectral_normed)
+
         self.relu = nn.ReLU()
+
         self.conv2 = conv2d(in_channels, out_channels,  kernel_size = kernel, stride = stride, padding = 1, spectral_normed = spectral_normed)
+    
         self.sa = QTransformerBlock(out_channels)
 
     def forward(self, x):
@@ -157,9 +153,9 @@ class Residual_SA(nn.Module):
         y = self.conv2(y)
         y = self.sa(y)
         y += x
-
+        
+        
         return y
-
 
 class Residual_G(nn.Module):
     def __init__(self, in_channels, out_channels = 256, kernel_size = 3, stride = 1, 
@@ -364,3 +360,48 @@ class QSNLinear(nn.Module):
         out = self.linear(input)
         return out    
     
+
+
+class QBatchNorm2d(nn.Module):
+    def __init__(self, num_features, eps=1e-5, momentum=0.1):
+        super(QBatchNorm2d, self).__init__()
+        assert num_features % 4 == 0, "Number of quaternion channels must be a multiple of 4"
+        self.num_quaternion_units = num_features // 4
+
+        # Learnable scaling and shifting for each quaternion unit
+        self.gamma = nn.Parameter(torch.ones(1, self.num_quaternion_units, 1, 1))
+        self.beta = nn.Parameter(torch.zeros(1, self.num_quaternion_units, 1, 1))
+
+        # Standard BN parameters
+        self.eps = eps
+        self.momentum = momentum
+        self.running_mean = torch.zeros(1, self.num_quaternion_units, 1, 1)
+        self.running_var = torch.ones(1, self.num_quaternion_units, 1, 1)
+
+    def forward(self, x):
+        batch_size, channels, height, width = x.shape
+        assert channels % 4 == 0, "Quaternion tensors must have channels divisible by 4"
+
+        # Split quaternion components
+        x_r, x_i, x_j, x_k = torch.chunk(x, 4, dim=1)
+
+        # Compute the shared mean and variance across quaternion units
+        mean = (x_r.mean(dim=(0, 2, 3), keepdim=True) + 
+                x_i.mean(dim=(0, 2, 3), keepdim=True) + 
+                x_j.mean(dim=(0, 2, 3), keepdim=True) + 
+                x_k.mean(dim=(0, 2, 3), keepdim=True)) / 4
+
+        var = ((x_r.var(dim=(0, 2, 3), keepdim=True, unbiased=False) + 
+                x_i.var(dim=(0, 2, 3), keepdim=True, unbiased=False) + 
+                x_j.var(dim=(0, 2, 3), keepdim=True, unbiased=False) + 
+                x_k.var(dim=(0, 2, 3), keepdim=True, unbiased=False)) / 4)
+
+        # Normalize all four quaternion components with shared mean and variance
+        x_r = (x_r - mean) / torch.sqrt(var + self.eps)
+        x_i = (x_i - mean) / torch.sqrt(var + self.eps)
+        x_j = (x_j - mean) / torch.sqrt(var + self.eps)
+        x_k = (x_k - mean) / torch.sqrt(var + self.eps)
+
+        # Reassemble quaternion tensor and apply learnable scaling and shifting
+        x = torch.cat([x_r, x_i, x_j, x_k], dim=1)
+        return x * self.gamma + self.beta
