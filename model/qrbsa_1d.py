@@ -258,14 +258,14 @@ class QRBSA_1D(nn.Module):
         ]
 
         self.head = nn.Sequential(*m_head)
-        self.body = nn.Sequential(*m_body)
+        #self.body = nn.Sequential(*m_body)
         self.tail = nn.Sequential(*m_tail)
 
     def forward(self, x):
         alpha = 1 # learnable or fixed
         x = self.head(x)
-        res = self.body(x)
-        x= res + alpha * x
+        #res = self.body(x)
+        #x= res + alpha * x
         x = self.tail(x)
         return x
 

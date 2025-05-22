@@ -12,7 +12,7 @@ CUDA_VISIBLE_DEVICES=1 python -m main.py \
     --n_resgroups 10 \
     --n_feats 256 \
     --n_colors 4 \
-    --save 'qrbsa_bs1_T10_loss2_NO_residual'\
+    --save 'NO_augmentation'\
     --loss '1*MisOrientation' \
     --dist_type "minimum_angle_transformation"\
     --patch_size 64 \

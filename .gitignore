@@ -21,3 +21,16 @@ superfibonacci/
 #ignore folder __pycache__
 __pycache__/
 #ignore folder 
+launch.json
+pipeline.json
+
+store_Debug_quats.ipynb
+#ignore folder .vscode
+#ignore folder .idea
+#ignore folder .DS_Store
+#ignore folder .git
+./vscode/*
+./idea/*
+./DS_Store
+./git/*
+gitignore

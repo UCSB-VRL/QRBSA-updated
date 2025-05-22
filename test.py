@@ -50,8 +50,7 @@ if checkpoint.ok:
 
         
     model = model.Model(args, checkpoint)
-
-    import pdb; pdb.set_trace()
+    #import pdb; pdb.set_trace()
     count_parameters(model)
 
 

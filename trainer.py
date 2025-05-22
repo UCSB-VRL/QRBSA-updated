@@ -238,30 +238,34 @@ class Trainer():
 
         return hr_transformed
         
-    def prepare_sr_transformed(self, sr, random_quats, syms_ext):
+    def prepare_sr_transformed(self, sr_fn, random_quats, syms_ext):
 
-        B, C, H, W = sr.shape  # here B includes batch size and T, C=4
+        B, C, H, W = sr_fn.shape  # here B includes batch size and T, C=4
         # Scalar last to first for sr for transformation
+        sr =sr_fn.clone()
         sr = scalar_last2first(sr.permute(0,2,3,1))  # shape (B*T, H, W, 4)
         sr_transformed = hamilton_product_torch(random_quats, sr.view(B,-1, 4))
-        sr_transformed = sr_transformed.squeeze(1).view(-1, 1, 4)
-        sr_transformed = sr_transformed / (torch.norm(sr_transformed, dim=-1, keepdim=True) + 1e-12)
+        sr_transformed = sr_transformed.view(-1, 4)
+        #sr_transformed = sr_transformed.view(-1, 1, 4)
+        #sr_transformed = sr_transformed / (torch.norm(sr_transformed, dim=-1, keepdim=True) + 1e-12)
 
         # blow sr_transformed to 48 orientations
-        sr_transformed = hamilton_product_torch(syms_ext, sr_transformed.view(-1, 1, 4))
+        # sr_transformed = hamilton_product_torch(syms_ext, sr_transformed)
 
-        # choose the idx with max scalar value
-        # select the quaternions with the maximum value along dim=-2
-        idx = torch.argmax(sr_transformed[..., 0], dim=-1).squeeze()  # shape => (B, N,)
-        idx_expanded_3D = idx.unsqueeze(-1).unsqueeze(-1).expand(-1, 1, 4)
-        assert idx_expanded_3D.shape == (B*H*W, 1, 4), \
-            f"idx_expanded_3D must be (BHW,1,4); got {tuple(idx_expanded_3D.shape)}"
-        assert sr_transformed.shape == (B*H*W, 48, 4), \
-            f"quat_sym must be (BHW,48,4); got {tuple(sr_transformed.shape)}"
+        # # choose the idx with max scalar value
+        # # select the quaternions with the maximum value along dim=-2
+        # idx = torch.argmax(sr_transformed[..., 0], dim=-1).squeeze()  # shape => (B, N,)
+        # idx_expanded_3D = idx.unsqueeze(-1).unsqueeze(-1).expand(-1, 1, 4)
+        # assert idx_expanded_3D.shape == (B*H*W, 1, 4), \
+        #     f"idx_expanded_3D must be (BHW,1,4); got {tuple(idx_expanded_3D.shape)}"
+        # assert sr_transformed.shape == (B*H*W, 48, 4), \
+        #     f"quat_sym must be (BHW,48,4); got {tuple(sr_transformed.shape)}"
         
-        # 4) Gather best quaternions => shape (B,HW,1,4)
-        sr_transformed = torch.gather(sr_transformed, dim=1, index=idx_expanded_3D)  # shape => (B,HW,1,4)
-        sr_transformed = sr_transformed / (torch.norm(sr_transformed, dim=-1, keepdim=True) + 1e-12)
+        # # 4) Gather best quaternions => shape (B,HW,1,4)
+        # sr_transformed = torch.gather(sr_transformed, dim=1, index=idx_expanded_3D)  # shape => (B,HW,1,4)
+        # sr_transformed = sr_transformed / (torch.norm(sr_transformed, dim=-1, keepdim=True) + 1e-12)
+
+        sr_transformed = fz_reduce(sr_transformed, fcc_syms)        
 
         # scalar first to last for sr_transformed
         sr_transformed = scalar_first2last(sr_transformed).view(B, H, W, 4).permute(0,3,1,2)  # shape (B*T, 4*H, W, 4)
@@ -672,6 +676,7 @@ class Trainer():
                 random_quats = random_quats[:,None, :].expand(B*T, -1, 4)
                 sr_transformed = self.prepare_sr_transformed(sr, random_quats, syms_ext=syms_ext)
                 sr_transformed_random_0 = sr_transformed[0].unsqueeze(0).permute(0,2,3,1)
+                
 
                 # take the median pooling of sr along T dimension
                 median_indices= torch.median(sr_transformed.view(B, T, 4, -1)[..., -1, :], dim=1)[1]
@@ -763,8 +768,6 @@ class Trainer():
                 t = end_time - start_time
                 print("Time:", t)
 
-
-
     def post_process(self, x, org_shape):
         #import pdb; pdb.set_trace()
         b, ch, h, w = org_shape
@@ -817,7 +820,6 @@ class Trainer():
             #epoch = self.scheduler.last_epoch + 1
             epoch = self.epoch + 1
             return epoch >= self.args.epochs
-
 
     def is_val(self):
         epoch = self.epoch 

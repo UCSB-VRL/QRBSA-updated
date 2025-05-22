@@ -57,7 +57,7 @@
                     "--n_resgroups", "10",
                     "--n_feats", "256",
                     "--n_colors", "4",  
-                    "--save", "DEBUG_SESSION",
+                    "--save", "NO_augmentation",
                     "--resume", "-1",
                     "--model_to_load", "model_best",
                     "--test_dataset_type", "Test",
