@@ -53,7 +53,6 @@ if checkpoint.ok:
 
     print("LR Val Path:", lr_val_data_path)
     print("HR Val Path:", hr_val_data_path)
-     
     
     dataset_train = EBSD_Ti64DIC_dataset(args, lr_train_data_path, hr_train_data_path, upsample_2d=args.upsample_2d) 
     dataset_val = EBSD_Ti64DIC_dataset(args, lr_val_data_path, hr_val_data_path, is_Train=False) 
@@ -64,11 +63,9 @@ if checkpoint.ok:
     data_loader_val = DataLoader(dataset=dataset_val, batch_size=args.val_batch_size, 
                              num_workers= 1, 
                              shuffle=False, drop_last=False)
-
     data_loader_test = None
 
     model = model.Model(args, checkpoint)
-    import pdb; pdb.set_trace()
     count_parameters(model)
     
     # HARCODING CONSISTENCY LOSS PARAMETER

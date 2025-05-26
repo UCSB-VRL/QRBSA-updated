@@ -1,6 +1,6 @@
 #!/bin/sh
 
-CUDA_VISIBLE_DEVICES=1 python -m main.py \
+CUDA_VISIBLE_DEVICES=4 python -m main.py \
     --input_dir '/data/home/umang/Materials/Materials_data_mount/fz_reduced/Open_718_Z_Upsampling' \
     --hr_data_dir 'Train/HR_Images/preprocessed_imgs_1D' \
     --val_lr_data_dir 'Val/LR_Images/X4/preprocessed_imgs_1D' \
@@ -12,18 +12,16 @@ CUDA_VISIBLE_DEVICES=1 python -m main.py \
     --n_resgroups 10 \
     --n_feats 256 \
     --n_colors 4 \
-    --save 'NO_augmentation'\
+    --save 'transposeConv_multipass_outerprod'\
     --loss '1*MisOrientation' \
     --dist_type "minimum_angle_transformation"\
     --patch_size 64 \
     --batch_size 1 \
     --scale 4 \
-    --val_freq 2 \
+    --val_freq 5 \
     --save_model_freq 100 \
     --syms_type 'FCC' \
     --syms_req \
     --epoch 1000 \
     --include_consistency_loss False \
-    --prog_patch \
-    
- 
+    --prog_patch 

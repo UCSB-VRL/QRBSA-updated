@@ -17,7 +17,7 @@
 # 3. Run the script
 
 current_dir=$(pwd)
-modelname="qrbsa_KERNEL_SIZE_4_bs1_T10_loss2_transposeConv1pass_NO_transformer"
+modelname="transposeConv_1pass_bs4_outerprod"
 exp_type="minimum_angle_transform"
 modeltoload="model_best"
 filetype="HR"

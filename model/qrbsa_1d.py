@@ -15,7 +15,7 @@ def make_model(args):
     return QRBSA_1D(args)
 
 class TransposedConvUpsampler1D(nn.Module):
-    def __init__(self, in_ch, out_ch, kernel_size=(1,3), stride=(1,2), padding=(0,0), output_padding=(0,1)):
+    def __init__(self, in_ch, out_ch, kernel_size=(3,3), stride=(1,2), padding=(0,0), output_padding=(0,1)):
         super().__init__()
         self.transposed_conv = nn.ConvTranspose2d(
             in_channels=in_ch,
@@ -117,7 +117,7 @@ class Upsampler1D_transpose_conv(nn.Module):
         # Adding dropout layer after the convolution layer
         self.dropout = nn.Dropout(p=dropout_prob)  # Dropout with specified probability
         self.pixel_shuffle = PixelShuffle1D(2) 
-        self.transposed_conv = TransposedConvUpsampler1D(2*n_feat, n_feat)
+        self.transposed_conv = TransposedConvUpsampler1D(2*n_feat, n_feat, kernel_size=(3,3), stride=(1,2), padding=(1,1), output_padding=(0,1))
         #self.up_sample = nn.Upsample(scale_factor=2, mode='linear', align_corners=True)
         self.scale = scale
         self.n_feat = n_feat
@@ -139,6 +139,7 @@ class Upsampler1D_transpose_conv(nn.Module):
                 #print(x.shape)
                 #x = self.pixel_shuffle(x)
                 x= self.transposed_conv(x)
+                #x= self.conv_layer2(x)
                 #print(x.shape)
                 
                 #x = self.dropout(x)
@@ -184,7 +185,7 @@ class Upsampler1D_transpose_conv_1pass(nn.Module):
             x = x.permute(0,1,3,2)
             x= self.conv_layer(x)
             x= self.transposed_conv(x)
-            #x= self.post_conv_layer(x)
+            x= self.post_conv_layer(x)
             #x= self.post_conv_layer(x)
             #print(x.shape)
             #x = self.dropout(x)
@@ -252,8 +253,10 @@ class QRBSA_1D(nn.Module):
 
         #kernel_size = scale
         m_tail = [
-                Upsampler1D_transpose_conv_1pass(kernel_size= kernel_size, scale=scale, n_feat=n_feats, act=False),
+                #Upsampler1D_transpose_conv_1pass(kernel_size= kernel_size, scale=scale, n_feat=n_feats, act=False),
+                Upsampler1D_transpose_conv(kernel_size= kernel_size, scale=scale, n_feat=n_feats, act=False),
                 #Upsampler1D_quaternion_interp(kernel_size, scale, n_feats, act=False),
+                #Upsampler1D_pixel_shuffle(kernel_size, scale, n_feats, act=False),
                 conv2d(n_feats, args.n_colors,  kernel_size = kernel_size, stride = 1, padding=kernel_size //2)
         ]
 

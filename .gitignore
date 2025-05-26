@@ -33,4 +33,4 @@ store_Debug_quats.ipynb
 ./idea/*
 ./DS_Store
 ./git/*
-gitignore
+.gitignore

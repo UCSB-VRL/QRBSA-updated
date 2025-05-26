@@ -8,7 +8,7 @@ CUDA_VISIBLE_DEVICES=7 python test.py \
     --n_resgroups 10 \
     --n_feats 256 \
     --n_colors 4 \
-    --save 'qrbsa_KERNEL_SIZE_4_bs1_T10_loss2_transposeConv1pass_NO_transformer' \
+    --save 'transposeConv_1pass_bs4_outerprod' \
     --resume -1 \
     --model_to_load 'model_best' \
     --test_dataset_type 'Test' \

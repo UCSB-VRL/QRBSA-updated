@@ -12,11 +12,11 @@ CUDA_VISIBLE_DEVICES=3 python -m main.py \
     --n_resgroups 10 \
     --n_feats 256 \
     --n_colors 4 \
-    --save 'qrbsa_KERNEL_SIZE_4_bs1_T10_loss2_transposeConv1pass_NO_transformer'\
+    --save 'transposeConv_multipass_outerprod'\
     --loss '1*MisOrientation' \
     --dist_type "minimum_angle_transformation"\
     --patch_size 64 \
-    --batch_size 4 \
+    --batch_size 1 \
     --scale 4 \
     --val_freq 2 \
     --save_model_freq 100 \

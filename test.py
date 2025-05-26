@@ -27,12 +27,10 @@ def count_parameters(model):
     return total_params
 
 if checkpoint.ok:
-   
     """
     Test Data Loader
-
     """
-   
+    
     #import pdb; pdb.set_trace()
     lr_data_path = f'/{args.input_dir}/{args.test_dataset_type}/LR_Images/X{args.scale}/preprocessed_imgs_1D'
     hr_data_path = f'/{args.input_dir}/{args.test_dataset_type}/HR_Images/preprocessed_imgs_1D'
