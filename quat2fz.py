@@ -9,7 +9,6 @@
 # from mpl_toolkits.mplot3d import Axes3D
 # from mpl_toolkits.mplot3d import Axes3D
 
-
 # def read_points_file(filename):
 
 #     filename = os.path.join(os.getcwd(), filename)
@@ -73,7 +72,7 @@ import torch
 # ---- Step 1: Generate uniform quaternions using Fibonacci sampling ----
 phi = np.sqrt(2.0)
 psi = 1.533751168755204288118041
-n = 100000
+n = 1000000
 Q = np.empty((n, 4), dtype=float)
 
 for i in range(n):
@@ -129,7 +128,7 @@ def hamilton_product(q1, q2):
 
     return out
 
-def reduce_to_fz_fcc_all_torch(Q, syms):
+def fz_reduce_torch(Q, syms):
     """
     For all quaternions in Q (shape = (N,4)), find the best quaternion 
     in the FCC FZ (closest to the identity [1,0,0,0]).
@@ -182,8 +181,7 @@ def reduce_to_fz_fcc_all_torch(Q, syms):
 
     return best_quat
 
-
-def reduce_to_fz_fcc_all(Q):
+def fz_reduce(Q):
     """
     For all quaternions in Q (shape = (N,4)), find the best quaternion in the FCC FZ.
     Returns best_quat shape = (N,4).
@@ -260,10 +258,21 @@ syms = np.asarray(fcc_syms)  # shape: (24, 4)
 # expand syms by appending negative of syms
 syms = np.concatenate((syms, -syms), axis=0)  # shape: (48, 4)
 
-Q_fz= reduce_to_fz_fcc_all(Q)
+# fz reduce with original function.
+from mat_sci_torch_quats.quats_old import fz_reduce
 
+device = torch.device('cuda:0')  # Change to 'cuda:0' if you want to use GPU
+
+# convert Q to torch tensor
+Q_tensor = torch.tensor(Q, dtype=torch.float32, device=device)
+# convert syms to torch tensor
+syms_tensor = torch.tensor(fcc_syms, dtype=torch.float32, device=device)
+Q_fz= fz_reduce(Q_tensor, syms_tensor)
+
+# convert back to numpy array
+Q_fz = Q_fz.detach().cpu().numpy()
 # ---- Step 3: Save reduced quaternions ----
-np.savetxt("quaternions_fz.txt", Q_fz, fmt="%.6f")
+#np.savetxt("quaternions_fz.txt", Q_fz, fmt="%.6f")
 
 print("Saved:")
 print(" - quaternions_fibonacci.txt (raw samples)")
@@ -279,6 +288,12 @@ for q in Q_fz:
     angles_rad.append(angle)
 
 angles_rad = np.array(angles_rad)
+angles_deg = np.degrees(angles_rad)
+# save all the quaternions which have angles in degrees> 62 degrees
+edge_quats = Q_fz[angles_deg > 62]
+print(f"Number of quaternions with angle > 62 degrees: {len(edge_quats)}")
+np.savetxt("quaternions_edge_fz.txt", edge_quats, fmt="%.6f")
+
 avg_angle_rad = np.mean(angles_rad)
 avg_angle_deg = np.degrees(avg_angle_rad)
 
@@ -328,6 +343,63 @@ plt.savefig("angle_histogram.png")
 plt.show()
 
 
+# NOW DO IT FOR EDGE QUATS.
+# Calculate statistics for edge_quats
+angles_rad_edge = []
+for q in edge_quats:
+    dot_val = np.clip(np.dot(q, identity), -1.0, 1.0)
+    angle = 2 * np.arccos(dot_val)
+    angles_rad_edge.append(angle)
+angles_rad_edge = np.array(angles_rad_edge)
+
+avg_angle_rad_edge = np.mean(angles_rad_edge)
+avg_angle_deg_edge = np.degrees(avg_angle_rad_edge)
+
+# calculate median and mode of angles
+median_angle_rad_edge = np.median(angles_rad_edge)
+median_angle_deg_edge = np.degrees(median_angle_rad_edge)
+
+mode_angle_rad_edge = np.unique(angles_rad_edge, return_counts=True)
+mode_angle_rad_edge = mode_angle_rad_edge[0][np.argmax(mode_angle_rad_edge[1])]
+mode_angle_deg_edge = np.degrees(mode_angle_rad_edge)
+
+# calculate max and min of angles
+max_angle_rad_edge = np.max(angles_rad_edge)
+max_angle_deg_edge = np.degrees(max_angle_rad_edge)
+min_angle_rad_edge = np.min(angles_rad_edge)
+min_angle_deg_edge = np.degrees(min_angle_rad_edge)
+
+print(f"Average angle to identity quaternion (edge_quats):")
+print(f"  - Radians: {avg_angle_rad_edge:.6f}")
+print(f"  - Degrees: {avg_angle_deg_edge:.6f}")
+
+print(f"Median angle to identity quaternion (edge_quats):")
+print(f"  - Radians: {median_angle_rad_edge:.6f}")
+print(f"  - Degrees: {median_angle_deg_edge:.6f}")
+
+print(f"Mode angle to identity quaternion (edge_quats):")
+print(f"  - Radians: {mode_angle_rad_edge:.6f}")
+print(f"  - Degrees: {mode_angle_deg_edge:.6f}")
+
+print(f"Max angle to identity quaternion (edge_quats):")
+print(f"  - Radians: {max_angle_rad_edge:.6f}")
+print(f"  - Degrees: {max_angle_deg_edge:.6f}")
+
+print(f"Min angle to identity quaternion (edge_quats):")
+print(f"  - Radians: {min_angle_rad_edge:.6f}")
+print(f"  - Degrees: {min_angle_deg_edge:.6f}")
+
+# get histogram of angles for edge_quats
+import matplotlib.pyplot as plt
+plt.hist(np.degrees(angles_rad_edge))
+plt.xlabel("Angle (degrees)")
+plt.ylabel("Frequency")
+plt.title("Histogram of angles to identity quaternion (edge_quats)")
+plt.grid()
+plt.savefig("angle_histogram_edge_quats.png")
+plt.show()
+
+
 # Calculate for original Q
 angles_rad_orig = []
 for q in Q:
@@ -353,5 +425,3 @@ mode_angle_deg_orig = np.degrees(mode_angle_rad_orig)
 # print(f"Mode angle to identity quaternion (original):")
 # print(f"  - Radians: {mode_angle_rad_orig:.6f}")
 # print(f"  - Degrees: {mode_angle_deg_orig:.6f}")
-
-

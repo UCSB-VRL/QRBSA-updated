@@ -73,7 +73,13 @@ def vec2mat(X):
         assert X.shape[-1] == 4, 'Last dimension must be of size 4'
         new_shape = X.shape[:-1] + (4,4)
         dtype = X.dtype
-        Q = Q_arr_flat.type(X.dtype).to(X.device)
+        
+        # Convert X to tensor if it's not already
+        if not isinstance(X, torch.Tensor):
+            X = torch.tensor(X)
+            
+        # Get the dtype properly
+        Q = Q_arr_flat.to(device=X.device, dtype=X.dtype)
         #print('Q', Q.dtype)
         return torch.matmul(X,Q).reshape(new_shape)
 
@@ -194,6 +200,8 @@ def fz_reduce(q,syms):
         shape = q.shape
         q = q.reshape((-1,4))
         syms = syms.cuda()
+        # syms is both syms and -syms
+        #syms = torch.cat((syms,-syms),dim=0)
         q_w_syms = outer_prod(q,syms)
         dists = rot_dist(q_w_syms)
         inds = dists.min(-1)[1]

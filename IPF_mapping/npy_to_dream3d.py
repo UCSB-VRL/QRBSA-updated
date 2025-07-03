@@ -29,7 +29,6 @@ print("args.exp_type", args.exp_type)
 #     key=get_key
 # )
 
-import pdb; pdb.set_trace() 
 
 # Updated file pattern to match the provided file path structure
 file_locs_hr = sorted(glob.glob(f'{npy_file_dir}/**/{args.data}*{args.section}*HR**.npy', recursive=True), key=get_key)
@@ -37,6 +36,13 @@ file_locs_sr = sorted(glob.glob(f'{npy_file_dir}/**/{args.data}*{args.section}*S
 
 # Combine HR and LR files
 file_locs = file_locs_hr + file_locs_sr
+
+import pdb; pdb.set_trace() 
+# get all npy files location in npy_file_dir
+# Get all .npy file locations in npy_file_dir (recursively)
+all_npy_files = sorted(glob.glob(f'{npy_file_dir}/**/*.npy', recursive=True))
+#print("All npy files found:", all_npy_files)
+#file_locs = all_npy_files
 total_file = len(file_locs)
 print("file locs", file_locs)
 
@@ -51,7 +57,6 @@ min_h = min(a.shape[0] for a in arr_list)
 min_w = min(a.shape[1] for a in arr_list)
 
 arr_list = [a[:min_h, :min_w] for a in arr_list]     # trim bottom / right
-
 
 # Create a NumPy object array to hold arrays of different shapes
 loaded_npy = np.array(arr_list)

@@ -6,9 +6,9 @@ CUDA_VISIBLE_DEVICES=6 python test.py \
     --patch_size 256 \
     --n_resblocks 10 \
     --n_resgroups 10 \
-    --n_feats 256 \
+    --n_feats 128 \
     --n_colors 4 \
-    --save 'transposeConv_1pass_bs4_outerprod' \
+    --save 'Full_qrbsa_transposeConv_multipass_outerprod_kernel_3,4_extra_conv' \
     --resume -1 \
     --model_to_load 'model_best' \
     --test_dataset_type 'Test' \

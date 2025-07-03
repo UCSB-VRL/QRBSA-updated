@@ -113,11 +113,20 @@ class Upsampler1D_transpose_conv(nn.Module):
         super(Upsampler1D_transpose_conv, self).__init__()
 
         self.conv_layer1 = conv2d(n_feat, 2*n_feat, kernel_size = kernel_size, stride = 1, padding = kernel_size //2)
-        self.conv_layer2 = conv2d(2*n_feat, 2*n_feat, kernel_size = kernel_size, stride = 1, padding = kernel_size //2)
+        self.conv_layer2 = conv2d(n_feat, n_feat, kernel_size = kernel_size, stride = 1, padding = kernel_size //2)
         # Adding dropout layer after the convolution layer
         self.dropout = nn.Dropout(p=dropout_prob)  # Dropout with specified probability
         self.pixel_shuffle = PixelShuffle1D(2) 
-        self.transposed_conv = TransposedConvUpsampler1D(2*n_feat, n_feat, kernel_size=(3,3), stride=(1,2), padding=(1,1), output_padding=(0,1))
+        #self.transposed_conv = TransposedConvUpsampler1D(2*n_feat, n_feat, kernel_size=(3,3), stride=(1,2), padding=(1,1), output_padding=(0,1))
+        self.transposed_conv = nn.ConvTranspose2d(
+                    in_channels=2 * n_feat,     # e.g., 1024
+                    out_channels=n_feat,            # e.g., 256
+                    kernel_size=(3, 4),             # upsampling only in width
+                    stride=(1, 2),
+                    padding=(1, 1),                 # pad width by 1, height unchanged
+                    output_padding=(0, 0),          
+                    bias=True
+                )
         #self.up_sample = nn.Upsample(scale_factor=2, mode='linear', align_corners=True)
         self.scale = scale
         self.n_feat = n_feat
@@ -261,7 +270,7 @@ class QRBSA_1D(nn.Module):
         ]
 
         self.head = nn.Sequential(*m_head)
-        #self.body = nn.Sequential(*m_body)
+        self.body = nn.Sequential(*m_body)
         self.tail = nn.Sequential(*m_tail)
 
     def forward(self, x):

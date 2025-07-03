@@ -113,7 +113,7 @@ class Trainer():
         self.optimizer = utility.make_optimizer(args, self.model)
         #self.scheduler = utility.make_scheduler(args, self.optimizer)
         self.scheduler = utility.make_warmup_scheduler(args, self.optimizer)
-        self.T = 50
+        self.T = 100
 
         if self.args.load != '.':
             self.optimizer.load_state_dict(
@@ -123,7 +123,7 @@ class Trainer():
         self.error_last = 1e8
         self.epsilon = 0.001
         
-        self.random_fz_quats= np.loadtxt('quaternions_fz.txt')
+        self.random_fz_quats= np.loadtxt('quaternions_edge_fz.txt')
 
     def prepare_lr_transformed(self, lr, random_quats_conj, syms_ext, T=None):
         if T is None:
@@ -240,13 +240,13 @@ class Trainer():
 
         return hr_transformed
         
-    def prepare_sr_transformed(self, sr_fn, random_quats, syms_ext):
+    def prepare_sr_transformed(self, sr, random_quats, syms_ext):
 
-        B, C, H, W = sr_fn.shape  # here B includes batch size and T, C=4
+        B, C, H, W = sr.shape  # here B includes batch size and T, C=4
         # Scalar last to first for sr for transformation
-        sr =sr_fn.clone()
-        sr = scalar_last2first(sr.permute(0,2,3,1))  # shape (B*T, H, W, 4)
-        sr_transformed = hamilton_product_torch(random_quats, sr.view(B,-1, 4))
+        sr_fn = sr.clone()
+        sr_fn = scalar_last2first(sr_fn.permute(0,2,3,1))  # shape (B*T, H, W, 4)
+        sr_transformed = hamilton_product_torch(random_quats, sr_fn.view(B,-1, 4))
         sr_transformed = sr_transformed.view(-1, 4)
         #sr_transformed = sr_transformed.view(-1, 1, 4)
         #sr_transformed = sr_transformed / (torch.norm(sr_transformed, dim=-1, keepdim=True) + 1e-12)
@@ -339,6 +339,7 @@ class Trainer():
             # ✅ Ensure `sr` has gradients
             sr_transformed.requires_grad_(True)
 
+            #import pdb; pdb.set_trace()
             ##############################################################################
             # take the median pooling of sr along T dimension
             median_indices= torch.median(sr_transformed.view(B, T, 4, -1)[..., -1, :], dim=1)[1]
@@ -682,18 +683,54 @@ class Trainer():
                 _, C,H,W = sr.shape 
 
                 # FZ REDUCE BEFORE TAKING MEDIAN
-                random_quats = random_quats[:,None, :].expand(B*T, -1, 4)
+                random_quats = random_quats[:,None, :].expand(B*T, -1, 4)                                                
                 sr_transformed = self.prepare_sr_transformed(sr, random_quats, syms_ext=syms_ext)
                 sr_transformed_random_0 = sr_transformed[0].unsqueeze(0).permute(0,2,3,1)
                 sr_transformed_random_1 = sr_transformed[1].unsqueeze(0).permute(0,2,3,1)
                 sr_transformed_random_2 = sr_transformed[2].unsqueeze(0).permute(0,2,3,1)
 
+                # Remember sr is already in FZ reduced using prepare_sr_transformed
+                if batch == 0:
+                #    import pdb; pdb.set_trace()
+                    
+                    sr_clone = sr.clone()
+                    sr_clone = scalar_last2first(sr_clone.permute(0,2,3,1))  # shape (B*T, H, W, 4)
+                    sr_clone_transformed = hamilton_product_torch(random_quats, sr_clone.view(B*T,-1, 4))
+                    sr_clone_transformed = sr_clone_transformed.view(-1, 4)
+                    sr_clone_transformed = scalar_first2last(sr_clone_transformed).view(B*T, H, W, 4).permute(0,3,1,2)  # shape (B*T, 4, H, W)
+
+                    sr_save_list = []
+                    sr_not_fz_reduced = []
+                    for i in range(0, B*T):
+                        sr_save_list.append(sr_transformed[i].unsqueeze(0).permute(0,2,3,1))
+                        sr_not_fz_reduced.append(sr_clone_transformed[i].unsqueeze(0).permute(0,2,3,1))
+                    sr_save = torch.cat(sr_save_list, dim=0)
+                    sr_not_fz_reduced = torch.cat(sr_not_fz_reduced, dim=0)
+
+                    # save sr_Save as npy
+                    #import pdb; pdb.set_trace()
+                    save_dir = os.path.join(self.ckp.dir, 'sr_save')
+                    if not os.path.exists(save_dir):
+                        os.makedirs(save_dir)
+                    save_path = os.path.join(
+                        save_dir,
+                        f'sr_save_{self.args.model}_{self.args.model_to_load}_{self.args.dist_type}.npy'
+                    )
+                    np.save(save_path, sr_save.cpu().numpy())
+                    save_path_not_fz_reduced = os.path.join(
+                        save_dir,
+                        f'sr_not_fz_reduced_{self.args.model}_{self.args.model_to_load}_{self.args.dist_type}.npy'
+                    )
+                    np.save(save_path_not_fz_reduced, sr_not_fz_reduced.cpu().numpy())
+
                 # take the median pooling of sr along T dimension
-                median_indices= torch.median(sr_transformed.view(B, T, 4, -1)[..., -1, :], dim=1)[1]
+                # Sort along T dimension before taking the median (ascending)
+                sr_scalar = sr_transformed.view(B, T, 4, -1)[..., -1, :]
+                median_indices = torch.median(sr_scalar, dim=1)[1]
                 median_indices = median_indices.unsqueeze(1).expand(-1, C, -1)
                 
                 # # take the mode pooling of sr along T dimension.
-                mode_indices= torch.mode(sr_transformed.view(B, T, 4, -1)[..., -1, :], dim=1)[1] 
+                mode_indices= torch.mode(sr_scalar, dim=1)[1] 
                 mode_indices = mode_indices.unsqueeze(1).expand(-1, C, -1)
 
                 sr_transformed = sr_transformed.reshape(B*T, C, -1)
@@ -706,7 +743,7 @@ class Trainer():
 
                 #sr = hr 
                 org_shape = hr.shape
-                                               
+                                             
                 #Interpolations
                 if is_trad_results:
                
@@ -717,13 +754,13 @@ class Trainer():
                         sr_up = upsampling(lr)
                         sr_up = self.post_process(sr_up, org_shape)
                         sr_up_trad.append(sr_up)
-            
+
                 #import pdb; pdb.set_trace() 
                 if isinstance(sr, list):
                     sr = self.post_process(sr[0], org_shape)
                 else:
                     sr = self.post_process(sr, org_shape)
-    
+
                 # prepare hr_transformed
                 hr_transformed= self.prepare_hr_transformed(hr, random_quats_conj, syms_ext=syms_ext)
                 B, C, H, W = hr_transformed.shape  # C=4
