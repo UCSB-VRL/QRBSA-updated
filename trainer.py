@@ -671,7 +671,7 @@ class Trainer():
                 it=0
                 # while loop for self.T%50 
                 while it < T/50:
-
+                
                     lr_transformed= self.prepare_lr_transformed(lr, random_quats_conj[:, it*50:(it+1)*50, ...], syms_ext=syms_ext, T=50)
                     # **Forward pass**
                     #import pdb; pdb.set_trace()
@@ -697,8 +697,15 @@ class Trainer():
                     sr_clone = scalar_last2first(sr_clone.permute(0,2,3,1))  # shape (B*T, H, W, 4)
                     sr_clone_transformed = hamilton_product_torch(random_quats, sr_clone.view(B*T,-1, 4))
                     sr_clone_transformed = sr_clone_transformed.view(-1, 4)
+                    
+                    temp = sr_clone_transformed.clone()
+                    temp = fz_reduce(temp, fcc_syms)        
+                    # scalar first to last for sr_transformed
+                    temp = scalar_first2last(temp).view(B*T, H, W, 4).permute(0,3,1,2)  # shape (B*T, 4*H, W, 4)
                     sr_clone_transformed = scalar_first2last(sr_clone_transformed).view(B*T, H, W, 4).permute(0,3,1,2)  # shape (B*T, 4, H, W)
 
+                    assert torch.allclose(temp, sr_transformed, atol=1e-6), "temp and sr_transformed are not equal"
+                    
                     sr_save_list = []
                     sr_not_fz_reduced = []
                     for i in range(0, B*T):
@@ -716,6 +723,7 @@ class Trainer():
                         save_dir,
                         f'sr_save_{self.args.model}_{self.args.model_to_load}_{self.args.dist_type}.npy'
                     )
+                    
                     np.save(save_path, sr_save.cpu().numpy())
                     save_path_not_fz_reduced = os.path.join(
                         save_dir,
@@ -740,6 +748,16 @@ class Trainer():
                 sr_transformed = sr_transformed / (torch.norm(sr_transformed, dim=1, keepdim=True) + 1e-12)
                 sr_transformed= sr_transformed.reshape(B, C, H, W)
                 # sr = sr_transformed
+
+                # save median indices and mode indices
+                save_dir = os.path.join(self.ckp.dir, 'sr_save')
+                if not os.path.exists(save_dir):
+                    os.makedirs(save_dir)
+                save_path_median = os.path.join(
+                    save_dir,
+                    f'sr_median_indices_{self.args.model}_{self.args.model_to_load}_{self.args.dist_type}.npy'
+                )
+                np.save(save_path_median, median_indices.reshape(B,C,H,W).cpu().numpy())
 
                 #sr = hr 
                 org_shape = hr.shape
@@ -810,7 +828,7 @@ class Trainer():
                 save_list.append(sr_transformed)
                 save_list.append(hr_transformed_back_0)
                 save_list.append(hr_transformed_back_1)
-
+                
                 #import pdb; pdb.set_trace()
                 #modes = ['LR', 'HR', f'SR_{self.args.model}_{self.args.model_to_load}_{self.args.dist_type}'] + modes
                 modes= ['LR', 'HR', f'SR_0_{self.args.model}_{self.args.model_to_load}_{self.args.dist_type}'] + modes + ['LR_transformed_0']+ ['HR_transformed0'] + ['HR_transformed1']+ ['SR_transformed_random_0'] + ['SR_transformed_random_1'] + ['SR_transformed_random_2'] + ['SR_transformed'] + ['HR_transformed_back_0'] + ['HR_transformed_back_1']
