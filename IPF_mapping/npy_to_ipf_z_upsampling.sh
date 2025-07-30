@@ -17,7 +17,7 @@
 # 3. Run the script
 
 current_dir=$(pwd)
-modelname="transposeConv_multipass_outerprod_kernel_3,4_extra_conv"
+modelname="reynolds_wrapper_qrbsa_1d"
 exp_type="minimum_angle_transform"
 modeltoload="model_best"
 filetype="HR"

@@ -28,7 +28,6 @@ import colorsys
 class EBSD_Ti64DIC_dataset(data.Dataset):
     """
     Custom Dataset compatible with torch.utils.data.DataLoader
-  
     """
     def __init__(self, args, root_lr, root_hr, upsample_2d= True, is_Train=True):
         #import pdb; pdb.set_trace()
@@ -44,7 +43,6 @@ class EBSD_Ti64DIC_dataset(data.Dataset):
     def load_file(self, filepath_lr, filepath_hr):
         
         # Load Numpy files
-             
         if self.is_Train:
             hr = np.load(f'{filepath_hr}')
             lr = np.load(f'{filepath_lr}') if filepath_lr is not None else None
@@ -58,7 +56,7 @@ class EBSD_Ti64DIC_dataset(data.Dataset):
             lr =  np.load(f'{filepath_lr}')
             hr = np.load(f'{filepath_hr}')
 
-        lr, hr = common.set_channel([lr, hr], self.args.n_colors)
+        lr, hr = common.set_channel([lr, hr], self.args.n_channels)
         lr, hr = common.np2Tensor([lr, hr], self.args.rgb_range)
         
         filename_hr = os.path.basename(filepath_hr)                                                

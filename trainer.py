@@ -19,6 +19,7 @@ from thop import profile
 import common
 import gc
 
+
 def reduce_to_fz_fcc_all_torch(Q, syms):
     """
     For all quaternions in Q (shape = (N,4)), find the best quaternion 
@@ -113,7 +114,7 @@ class Trainer():
         self.optimizer = utility.make_optimizer(args, self.model)
         #self.scheduler = utility.make_scheduler(args, self.optimizer)
         self.scheduler = utility.make_warmup_scheduler(args, self.optimizer)
-        self.T = 100
+        self.T = 10
 
         if self.args.load != '.':
             self.optimizer.load_state_dict(
@@ -298,19 +299,20 @@ class Trainer():
                 lr, hr = common.get_prog_patch_1D(hr, epoch, self.args.scale) 
         
             B, C, H, W = lr.shape  # C=4
+            #print(f"Batch {batch}: lr.shape={lr.shape}, hr.shape={hr.shape}, B={B}, C={C}, H={H}, W={W}")
             # pull 10 random quaternions from self.random_fz_quats
             #import pdb; pdb.set_trace()
             random_indices = np.random.choice(self.random_fz_quats.shape[0], self.T, replace=False)
             random_quats = self.random_fz_quats[random_indices]
             random_quats = torch.tensor(random_quats, dtype=torch.float32)
 
-            #random_quats = torch.tensor([1, 0, 0, 0], dtype=torch.float32).unsqueeze(0).expand(B*T, -1)
+            random_quats = torch.tensor([1, 0, 0, 0], dtype=torch.float32).unsqueeze(0).expand(B, -1)
             random_quats_conj= random_quats.clone()
             random_quats_conj[:, 1:] *= -1
             random_quats_conj = random_quats_conj / (torch.norm(random_quats_conj, dim=1, keepdim=True) + 1e-12)
 
             # GET LR_TRANSFORMED from LR, HR_TRANSFORMED from HR
-            random_quats_conj= random_quats_conj[None, :,None, :].expand(B, T, -1, 4)
+            random_quats_conj= random_quats_conj[None,:, None, :].expand(B, T, -1, 4)
 
              # symms expand lr_reshaped 
             syms_ext = torch.cat([fcc_syms, -fcc_syms], dim=0).unsqueeze(0)
@@ -348,7 +350,7 @@ class Trainer():
             # take the mode pooling of sr along T dimension.
             mode_indices= torch.mode(sr_transformed.view(B, T, 4, -1)[..., -1, :], dim=1)[1] 
             mode_indices = mode_indices.unsqueeze(1).expand(-1, C, -1).reshape(B, 1, C, -1) 
-
+            
             sr_transformed = sr_transformed.reshape(B,T, C, -1)
             sr_transformed= torch.gather(sr_transformed, dim=1, index=median_indices)  
             sr_transformed = sr_transformed / (torch.norm(sr_transformed, dim=2, keepdim=True) + 1e-12)
@@ -471,7 +473,7 @@ class Trainer():
                 random_quats = self.random_fz_quats[random_indices]
                 random_quats = torch.tensor(random_quats, dtype=torch.float32)
 
-                #random_quats = torch.tensor([1, 0, 0, 0], dtype=torch.float32).unsqueeze(0).expand(B*T, -1)
+                random_quats = torch.tensor([1, 0, 0, 0], dtype=torch.float32).unsqueeze(0).expand(B*T, -1)
                 random_quats_conj= random_quats.clone()
                 random_quats_conj[:, 1:] *= -1
                 random_quats_conj = random_quats_conj / (torch.norm(random_quats_conj, dim=1, keepdim=True) + 1e-12)
@@ -577,9 +579,9 @@ class Trainer():
         total_psnr_dict = dict.fromkeys(keys,0)
         count = 0
         total_dist = 0
+        
         with torch.no_grad():
             for batch, (lr, hr, filename_lr, filename_hr) in enumerate(self.loader_test):
-                
                 start_time = time.time()       
                 print('++++++++++++++++++++++++++++++++++++++++++++++++++++++++')
                 print(f' LR Image: {filename_lr} and HR Image: {filename_hr}')
@@ -660,7 +662,7 @@ class Trainer():
                 random_quats = self.random_fz_quats[random_indices]
                 random_quats = torch.tensor(random_quats, dtype=torch.float32)
                 
-                #random_quats = torch.tensor([1, 0, 0, 0], dtype=torch.float32).unsqueeze(0).expand(B*T, -1)
+                random_quats = torch.tensor([1, 0, 0, 0], dtype=torch.float32).unsqueeze(0).expand(B*T, -1)
 
                 random_quats_conj= random_quats.clone()
                 random_quats_conj[:, 1:] *= -1

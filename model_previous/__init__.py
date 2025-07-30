@@ -67,8 +67,7 @@ class Model(nn.Module):
     def state_dict(self, **kwargs):
         target = self.get_model()
         return target.state_dict(**kwargs)
-
-   
+  
     def save(self, apath, epoch, is_best=False):
         target = self.get_model()
         torch.save(
@@ -87,7 +86,6 @@ class Model(nn.Module):
                 os.path.join(apath, 'model', 'model_{}.pt'.format(epoch))
             )
 
- 
     def load(self, apath, pre_train='.', resume=-1, cpu=False):
         #import pdb; pdb.set_trace()
         if cpu:

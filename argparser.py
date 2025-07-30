@@ -12,13 +12,11 @@ class Argparser:
     def prepare_arg_parser(self):
         """
         Add all args to the argparser     
-
         """
         
         arg_parser = argparse.ArgumentParser()
     
         # Hardware specifications
-    
         arg_parser.add_argument('--GPU_ID', type=str, default='4',
                                 help='Which gpu to run on your program')
         arg_parser.add_argument('--cpu', action='store_true',
@@ -36,7 +34,6 @@ class Argparser:
  
         
         # Train, Val, Test DataSet specifications
-         
         arg_parser.add_argument('--input_dir', type=str, 
                                 default='/data/dkjangid/superresolution/Material_Dataset/Ti7_Deformed_Afterdef_HomoCubo',
                                 help=' directory path of input datasets')
@@ -60,8 +57,14 @@ class Argparser:
                                 help='output patch size from the network')
         arg_parser.add_argument('--rgb_range', type=int, default=2,
                                 help='maximum value of RGB')
-        arg_parser.add_argument('--n_colors', type=int, default=3,
+        
+        arg_parser.add_argument('--n_channels', type=int, default=4,
+                                help='number of input channels')
+        arg_parser.add_argument('--n_scale', type=int, default=3,
                                 help='number of channels to use')
+        arg_parser.add_argument('--n_feats', type=int, default=64,
+                                help='number of feature maps')
+        
         arg_parser.add_argument('--scalar_first', action='store_true', 
                                 help = 'Format for Quaternion data') 
         arg_parser.add_argument('--scale', type=int, default=4,
@@ -74,10 +77,7 @@ class Argparser:
         arg_parser.add_argument('--upsample_2d', action='store_true',
                                  help='1D or 2D upsampling') 
 
-
-
-        # Models specificaitons
- 
+        # Models specifications
         arg_parser.add_argument('--model', default='san',
                                 help='name of super-resolution model')        
         arg_parser.add_argument('--act', type=str, default='relu',
@@ -88,8 +88,7 @@ class Argparser:
                                 help='number of residual groups')
         arg_parser.add_argument('--reduction', type=int, default=16,
                                 help='number of feature maps reduction')
-        arg_parser.add_argument('--n_feats', type=int, default=64,
-                                help='number of feature maps')
+
         arg_parser.add_argument('--res_scale', type=float, default=1,
                                 help='residual scaling')
         arg_parser.add_argument('--shift_mean', default=True,
@@ -101,8 +100,7 @@ class Argparser:
         arg_parser.add_argument('--print_model', action='store_true',
                                 help='print model')
 
-        # Parameters saving specificaitons
-
+        # Parameters saving specifications
         arg_parser.add_argument('--print_every', type=int, default=1,
                                 help='how many batches to wait before logging training status')
         arg_parser.add_argument('--save_model_freq', type=int, default=500,
@@ -123,9 +121,13 @@ class Argparser:
                                 help='file name to load')
 
 
-                        
-        #Training Parameters
+        # pass sym path as an argument
+        arg_parser.add_argument('--syms_np_path', type=str, default="/reynolds_utils/fcc_symmetry_group.npy",
+                                help='path to symmetry group numpy file')
+        arg_parser.add_argument('--syms_inv_np_path', type=str, default="/reynolds_utils/fcc_symmetry_group_inv.npy",
+                                help='path to inverse symmetry group numpy file')
 
+        #Training Parameters
         arg_parser.add_argument('--leak_value', type=float, default=0.2,
                                 help='leak value in leaky relu')
         arg_parser.add_argument('--lr', type=float, default=0.0002,
