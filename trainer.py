@@ -126,6 +126,23 @@ class Trainer():
         
         self.random_fz_quats= np.loadtxt('quaternions_edge_fz.txt')
 
+        save_dir = os.path.join(self.ckp.dir, 'equivariance_errors')
+        os.makedirs(save_dir, exist_ok=True)
+        errors_file = os.path.join(save_dir, 'equivariance_errors.npy')
+        max_errors_file = os.path.join(save_dir, 'max_errors.npy')
+        sum_errors_file = os.path.join(save_dir, 'sum_errors.npy')
+        iteration_file = os.path.join(save_dir, 'iteration.npy')
+        # Load previous errors if they exist, else initialize
+        if os.path.exists(errors_file):
+            os.remove(errors_file)
+        if os.path.exists(max_errors_file):
+            os.remove(max_errors_file)
+        if os.path.exists(sum_errors_file):
+            os.remove(sum_errors_file)
+        if os.path.exists(iteration_file):
+            os.remove(iteration_file)
+        
+
     def prepare_lr_transformed(self, lr, random_quats_conj, syms_ext, T=None):
         if T is None:
             T = self.T

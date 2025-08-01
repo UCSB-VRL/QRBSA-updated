@@ -55,16 +55,30 @@ class Upsampler2DQuaternionTransposeConv(nn.Module):
         
         # Adding dropout layer after the convolution layer
         #self.dropout = nn.Dropout(p=dropout_prob)  # Dropout with specified probability
-
-        self.transposed_conv = EquivariantReynoldsWrap(
+        
+        self.transposed_conv1 = EquivariantReynoldsWrap(
             QuaternionTransposeConv(
-            in_channels=scale * scale * n_feats,  # e.g., 1024
-            out_channels=n_feats,  # e.g., 256
-            kernel_size=(5, 5),  # larger kernel size to reduce edge artifacts
-            stride=(scale, scale),  # upsampling by scale in both directions
-            padding=(2, 2),  # appropriate padding for kernel size
-            output_padding=(scale - 1, scale - 1),  # ensure correct output size
-            bias=True,
+                in_channels=scale*scale*n_feats,
+                out_channels=scale*n_feats,
+                kernel_size=(4,4),
+                stride=(2,2),
+                padding=(1,1),
+                output_padding=(0,0),
+                bias=True
+            ),
+            group_tensor=group_tensor,
+            group_tensor_inv=group_tensor_inv,
+        )
+
+        self.transposed_conv2 = EquivariantReynoldsWrap(
+            QuaternionTransposeConv(
+                in_channels=scale*n_feats,
+                out_channels=n_feats,
+                kernel_size=(4,4),
+                stride=(2,2),
+                padding=(1,1),
+                output_padding=(0,0),
+                bias=True
             ),
             group_tensor=group_tensor,
             group_tensor_inv=group_tensor_inv,
@@ -92,7 +106,8 @@ class Upsampler2DQuaternionTransposeConv(nn.Module):
             x = self.conv_layer(x)
             # print("After conv:", x.shape)
             #x = self.conv_layer(x)
-            x = self.transposed_conv(x)
+            x = self.transposed_conv1(x)
+            x = self.transposed_conv2(x)
             # print("After transpose:", x.shape)
             x = self.post_conv_layer(x)
             x = self.post_conv_layer(x)
