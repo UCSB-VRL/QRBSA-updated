@@ -58,17 +58,17 @@ class Upsampler2DQuaternionTransposeConv(nn.Module):
 
         self.transposed_conv = EquivariantReynoldsWrap(
             QuaternionTransposeConv(
-                in_channels=scale * scale * n_feats,  # e.g., 1024
-                out_channels=n_feats,  # e.g., 256
-                kernel_size=(scale, scale),  # upsampling only in width
-                stride=(scale, scale),
-                padding=(1, 1),  # pad width by 1, height unchanged
-                output_padding=(2, 2),  # add 2 more pixels in width
-                bias=True,
-                ),
-                group_tensor=group_tensor,
-                group_tensor_inv=group_tensor_inv,
-            )
+            in_channels=scale * scale * n_feats,  # e.g., 1024
+            out_channels=n_feats,  # e.g., 256
+            kernel_size=(5, 5),  # larger kernel size to reduce edge artifacts
+            stride=(scale, scale),  # upsampling by scale in both directions
+            padding=(2, 2),  # appropriate padding for kernel size
+            output_padding=(scale - 1, scale - 1),  # ensure correct output size
+            bias=True,
+            ),
+            group_tensor=group_tensor,
+            group_tensor_inv=group_tensor_inv,
+        )
 
 
         self.post_conv_layer = EquivariantReynoldsWrap(
@@ -91,8 +91,10 @@ class Upsampler2DQuaternionTransposeConv(nn.Module):
             # print("Permuted Input:", x.shape)
             x = self.conv_layer(x)
             # print("After conv:", x.shape)
-            #x = self.transposed_conv(x)
+            #x = self.conv_layer(x)
+            x = self.transposed_conv(x)
             # print("After transpose:", x.shape)
+            x = self.post_conv_layer(x)
             x = self.post_conv_layer(x)
             # print("After post_conv:", x.shape)
             # x = x.permute(0, 1, 3, 2)

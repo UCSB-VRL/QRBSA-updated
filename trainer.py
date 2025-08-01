@@ -114,7 +114,7 @@ class Trainer():
         self.optimizer = utility.make_optimizer(args, self.model)
         #self.scheduler = utility.make_scheduler(args, self.optimizer)
         self.scheduler = utility.make_warmup_scheduler(args, self.optimizer)
-        self.T = 10
+        self.T = 1
 
         if self.args.load != '.':
             self.optimizer.load_state_dict(
@@ -295,8 +295,8 @@ class Trainer():
             )
 
             lr, hr = self.prepare([lr, hr])
-            if self.args.prog_patch:
-                lr, hr = common.get_prog_patch_1D(hr, epoch, self.args.scale) 
+            # if self.args.prog_patch:
+            #     lr, hr = common.get_prog_patch_1D(hr, epoch, self.args.scale) 
         
             B, C, H, W = lr.shape  # C=4
             #print(f"Batch {batch}: lr.shape={lr.shape}, hr.shape={hr.shape}, B={B}, C={C}, H={H}, W={W}")
@@ -306,7 +306,7 @@ class Trainer():
             random_quats = self.random_fz_quats[random_indices]
             random_quats = torch.tensor(random_quats, dtype=torch.float32)
 
-            random_quats = torch.tensor([1, 0, 0, 0], dtype=torch.float32).unsqueeze(0).expand(B, -1)
+            random_quats = torch.tensor([1, 0, 0, 0], dtype=torch.float32).unsqueeze(0).expand(1, -1)
             random_quats_conj= random_quats.clone()
             random_quats_conj[:, 1:] *= -1
             random_quats_conj = random_quats_conj / (torch.norm(random_quats_conj, dim=1, keepdim=True) + 1e-12)
@@ -332,41 +332,52 @@ class Trainer():
             sr = self.model(lr_transformed, self.scale)
             # Normalize sr 
             sr = sr / (torch.norm(sr, dim=1, keepdim=True) + 1e-12)
-            
+
+            # if batch % 100 == 0:
+            #     passed, max_err, errs = self.test_model_equivariance(lr_transformed)
+            #     print("Equivariant:", passed)
+            #     print("Max error:", max_err)
+            #     print("Per-group errors:", errs)
+                
             _, C,H,W = sr.shape 
             # GET SR_TRANSFORMED from SR
-            random_quats = random_quats.repeat(B, 1).view(B*T, 1, 4)
-            sr_transformed = self.prepare_sr_transformed(sr, random_quats, syms_ext=syms_ext)
+            random_quats = random_quats.repeat(B*T, 1).view(B*T, 1, 4)
+            # sr_transformed = self.prepare_sr_transformed(sr, random_quats, syms_ext=syms_ext)
         
-            # ✅ Ensure `sr` has gradients
-            sr_transformed.requires_grad_(True)
+            # # ✅ Ensure `sr` has gradients
+            # sr_transformed.requires_grad_(True)
 
-            #import pdb; pdb.set_trace()
-            ##############################################################################
-            # take the median pooling of sr along T dimension
-            median_indices= torch.median(sr_transformed.view(B, T, 4, -1)[..., -1, :], dim=1)[1]
-            median_indices = median_indices.unsqueeze(1).expand(-1, C, -1).reshape(B, 1, C, -1) 
+            # #import pdb; pdb.set_trace()
+            # ##############################################################################
+            # # take the median pooling of sr along T dimension
+            # median_indices= torch.median(sr_transformed.view(B, T, 4, -1)[..., -1, :], dim=1)[1]
+            # median_indices = median_indices.unsqueeze(1).expand(-1, C, -1).reshape(B, 1, C, -1) 
             
-            # take the mode pooling of sr along T dimension.
-            mode_indices= torch.mode(sr_transformed.view(B, T, 4, -1)[..., -1, :], dim=1)[1] 
-            mode_indices = mode_indices.unsqueeze(1).expand(-1, C, -1).reshape(B, 1, C, -1) 
+            # # take the mode pooling of sr along T dimension.
+            # mode_indices= torch.mode(sr_transformed.view(B, T, 4, -1)[..., -1, :], dim=1)[1] 
+            # mode_indices = mode_indices.unsqueeze(1).expand(-1, C, -1).reshape(B, 1, C, -1) 
             
-            sr_transformed = sr_transformed.reshape(B,T, C, -1)
-            sr_transformed= torch.gather(sr_transformed, dim=1, index=median_indices)  
-            sr_transformed = sr_transformed / (torch.norm(sr_transformed, dim=2, keepdim=True) + 1e-12)
-            sr_transformed= sr_transformed.reshape(B, C, H, W)
-            
-            # **Compute loss safely**
-            #### loss-1 ######
+            # sr_transformed = sr_transformed.reshape(B,T, C, -1)
+            # sr_transformed= torch.gather(sr_transformed, dim=1, index=median_indices)  
 
-            if isinstance(sr, list):
-                loss1 = torch.sum(torch.stack([self.loss(sr_transformed[j], hr) for j in range(len(sr_transformed))]))
-            else:
-                if self.args.include_consistency_loss:
-                    #loss, consistency_loss = self.loss(sr, hr)
-                    loss1 = self.loss(sr_transformed, hr)
-                else:
-                    loss1 = self.loss(sr_transformed, hr)  # ✅ Do not detach here!
+
+    
+            # sr_transformed = sr_transformed / (torch.norm(sr_transformed, dim=2, keepdim=True) + 1e-12)
+            # sr_transformed= sr_transformed.reshape(B, C, H, W)
+            
+            # # **Compute loss safely**
+            # #### loss-1 ######
+
+            # if isinstance(sr, list):
+            #     loss1 = torch.sum(torch.stack([self.loss(sr_transformed[j], hr) for j in range(len(sr_transformed))]))
+            # else:
+            #     if self.args.include_consistency_loss:
+            #         #loss, consistency_loss = self.loss(sr, hr)
+            #         loss1 = self.loss(sr_transformed, hr)
+            #     else:
+            #         loss1 = self.loss(sr_transformed, hr)  # ✅ Do not detach here!
+
+            loss1 = self.loss(sr, hr)
 
             # **Ensure loss is a scalar** 
             loss1 = loss1.mean()
@@ -462,8 +473,8 @@ class Trainer():
                 eval_acc = 0
 
                 lr, hr = self.prepare([lr, hr])
-                if self.args.prog_patch:
-                    lr, hr = common.get_prog_patch_1D(hr, epoch, self.args.scale) 
+                # if self.args.prog_patch:
+                #     lr, hr = common.get_prog_patch_1D(hr, epoch, self.args.scale) 
             
                 B, C, H, W = lr.shape  # C=4
                
@@ -473,13 +484,13 @@ class Trainer():
                 random_quats = self.random_fz_quats[random_indices]
                 random_quats = torch.tensor(random_quats, dtype=torch.float32)
 
-                random_quats = torch.tensor([1, 0, 0, 0], dtype=torch.float32).unsqueeze(0).expand(B*T, -1)
+                random_quats = torch.tensor([1, 0, 0, 0], dtype=torch.float32).unsqueeze(0).expand(B, -1)
                 random_quats_conj= random_quats.clone()
                 random_quats_conj[:, 1:] *= -1
                 random_quats_conj = random_quats_conj / (torch.norm(random_quats_conj, dim=1, keepdim=True) + 1e-12)
 
                 # GET LR_TRANSFORMED from LR, HR_TRANSFORMED from HR
-                random_quats_conj= random_quats_conj[None, :,None, :].expand(B, T, -1, 4)
+                random_quats_conj= random_quats_conj[None,:, None, :].expand(B, T, -1, 4)
 
                 # symms expand lr_reshaped 
                 syms_ext = torch.cat([fcc_syms, -fcc_syms], dim=0).unsqueeze(0)
@@ -502,40 +513,46 @@ class Trainer():
                 # get the first sr == sr[0]
                 sr_random_0 = sr[0].unsqueeze(0)
 
-                _, C,H,W = sr.shape 
+                _, C,H,W = hr.shape 
                 # GET SR_TRANSFORMED from SR
                 random_quats = random_quats[:,None, :].expand(B*T, -1, 4)
-                sr_transformed = self.prepare_sr_transformed(sr, random_quats, syms_ext=syms_ext)
-                sr_random_0_transformed = sr_transformed[0].unsqueeze(0)
+                # sr_transformed = self.prepare_sr_transformed(sr, random_quats, syms_ext=syms_ext)
+                # sr_random_0_transformed = sr_transformed[0].unsqueeze(0)
 
-                # ✅ Ensure `sr` has gradients
-                sr_transformed.requires_grad_(True)
+                # # ✅ Ensure `sr` has gradients
+                # sr_transformed.requires_grad_(True)
 
-                ##############################################################################
-                # take the median pooling of sr along T dimension
-                median_indices= torch.median(sr_transformed.view(B, T, 4, -1)[..., -1, :], dim=1)[1]
-                median_indices = median_indices.unsqueeze(1).expand(-1, C, -1).reshape(B, 1, C, -1) 
+                # ##############################################################################
+                # # take the median pooling of sr along T dimension
+                # median_indices= torch.median(sr_transformed.view(B, T, 4, -1)[..., -1, :], dim=1)[1]
+                # median_indices = median_indices.unsqueeze(1).expand(-1, C, -1).reshape(B, 1, C, -1) 
                 
-                # take the mode pooling of sr along T dimension.
-                mode_indices= torch.mode(sr_transformed.view(B, T, 4, -1)[..., -1, :], dim=1)[1] 
-                mode_indices = mode_indices.unsqueeze(1).expand(-1, C, -1).reshape(B, 1, C, -1) 
+                # # take the mode pooling of sr along T dimension.
+                # mode_indices= torch.mode(sr_transformed.view(B, T, 4, -1)[..., -1, :], dim=1)[1] 
+                # mode_indices = mode_indices.unsqueeze(1).expand(-1, C, -1).reshape(B, 1, C, -1) 
 
-                sr_transformed = sr_transformed.reshape(B,T, C, -1)
-                sr_transformed= torch.gather(sr_transformed, dim=1, index=median_indices)  
-                sr_transformed = sr_transformed / (torch.norm(sr_transformed, dim=2, keepdim=True) + 1e-12)
-                sr_transformed= sr_transformed.reshape(B, C, H, W)
-                # **Compute loss safely**
-                #### loss-1 ######
+                # sr_transformed = sr_transformed.reshape(B,T, C, -1)
+                # sr_transformed= torch.gather(sr_transformed, dim=1, index=median_indices)  
+                # sr_transformed = sr_transformed / (torch.norm(sr_transformed, dim=2, keepdim=True) + 1e-12)
+                # sr_transformed= sr_transformed.reshape(B, C, H, W)
+                # # **Compute loss safely**
+                # #### loss-1 ######
 
-                if isinstance(sr, list):
-                    loss1 = torch.sum(torch.stack([self.loss(sr_transformed[j], hr) for j in range(len(sr_transformed))]))
-                else:
-                    if self.args.include_consistency_loss:
-                        #loss, consistency_loss = self.loss(sr, hr)
-                        loss1 = self.loss(sr_transformed, hr)
-                    else:
-                        loss1 = self.loss(sr_transformed, hr)  # ✅ Do not detach here!
+                # if isinstance(sr, list):
+                #     loss1 = torch.sum(torch.stack([self.loss(sr_transformed[j], hr) for j in range(len(sr_transformed))]))
+                # else:
+                #     if self.args.include_consistency_loss:
+                #         #loss, consistency_loss = self.loss(sr, hr)
+                #         loss1 = self.loss(sr_transformed, hr)
+                #     else:
+                #         loss1 = self.loss(sr_transformed, hr)  # ✅ Do not detach here!
 
+
+                # Crop the sr to the same size as hr
+                sr= sr[:, :, :H, :W]  # Crop to match hr size
+
+
+                loss1 = self.loss(sr, hr)
                 # **Ensure loss is a scalar** 
                 val_loss= loss1
                 val_loss = val_loss.detach().cpu().numpy()
@@ -543,6 +560,92 @@ class Trainer():
                 total_val_loss += val_loss
                 count += 1
         
+        passed, max_err, errs = self.test_model_equivariance(lr, scale=self.scale)
+        print("Equivariant:", passed)
+        print("Max error:", max_err)
+        print("Per-group errors:", errs)
+
+        sum_error = sum(errs)
+        if sum_error > 0:
+            print(f"Sum of equivariance errors: {sum_error:.6f}")
+        else:
+            print("No equivariance errors detected.")
+
+        # EVALUATE EQUIVARIANCE ERRORS
+        # Plot and update equivariance errors over epochs/batches
+        save_dir = os.path.join(self.ckp.dir, 'equivariance_errors')
+        os.makedirs(save_dir, exist_ok=True)
+        errors_file = os.path.join(save_dir, 'equivariance_errors.npy')
+        max_errors_file = os.path.join(save_dir, 'max_errors.npy')
+        sum_errors_file = os.path.join(save_dir, 'sum_errors.npy')
+        iteration_file = os.path.join(save_dir, 'iteration.npy')
+
+        # Load previous errors if they exist, else initialize
+        if os.path.exists(errors_file):
+            all_errors = np.load(errors_file, allow_pickle=True).tolist()
+        else:
+            all_errors = []
+
+        if os.path.exists(max_errors_file):
+            max_errors = np.load(max_errors_file, allow_pickle=True).tolist()
+        else:
+            max_errors = []
+
+        if os.path.exists(sum_errors_file):
+            sum_errors = np.load(sum_errors_file, allow_pickle=True).tolist()
+        else:
+            sum_errors = []
+
+        if os.path.exists(iteration_file):
+            iteration = int(np.load(iteration_file))
+        else:
+            iteration = 0
+
+        # Update errors
+        all_errors.append(errs)
+        max_errors.append(max(errs))
+        sum_errors.append(sum(errs))
+        iteration += 1
+
+        # Save updated errors
+        np.save(errors_file, np.array(all_errors, dtype=object))
+        np.save(max_errors_file, np.array(max_errors, dtype=float))
+        np.save(sum_errors_file, np.array(sum_errors, dtype=float))
+        np.save(iteration_file, np.array(iteration, dtype=int))
+
+        # Plot max and sum errors over iterations
+        plt.figure(figsize=(10, 5))
+        plt.plot(range(1, iteration + 1), max_errors, label='Max Error', marker='o')
+        plt.plot(range(1, iteration + 1), sum_errors, label='Sum of Errors', marker='x')
+        plt.title('Equivariance Errors Over Iterations')
+        plt.xlabel('Iteration')
+        plt.ylabel('Error')
+        plt.legend()
+        plt.grid()
+        plt.tight_layout()
+        plt.savefig(os.path.join(save_dir, f'equivariance_errors_summary.png'))
+        plt.close()
+
+        # Ensure all_errors is a list of floats for plotting
+        # Flatten nested lists if present
+        def flatten(l):
+            for item in l:
+                if isinstance(item, list) or isinstance(item, np.ndarray):
+                    yield from flatten(item)
+                else:
+                    yield item
+                    
+        all_errors_plot = [float(e) for e in flatten(all_errors)]
+        plt.plot(all_errors_plot, marker='o')
+        plt.title('Equivariance Error Over Iterations')
+        plt.xlabel('Iteration')
+        plt.ylabel('Error')
+        plt.grid()
+        plt.tight_layout()
+        plt.savefig(os.path.join(save_dir, f'equivariance_errors_individual.png'))
+        plt.close()
+
+        ###################### PLOTS. #######################
         avg_val_loss = total_val_loss / count
         print("avg Val loss:", avg_val_loss)
 
@@ -560,6 +663,12 @@ class Trainer():
         lr= lr.permute(0,2,3,1).detach().cpu()
         lr_transformed_random_0 = lr_transformed[0].unsqueeze(0).permute(0,2,3,1).detach().cpu()
         hr= hr.permute(0,2,3,1).detach().cpu()
+
+        # added to make this reynolds with aaugmentation work.
+        sr_transformed =sr.clone()
+        sr_random_0 = sr.clone()
+        sr_random_0_transformed = sr.clone()
+
         sr_transformed= sr_transformed.permute(0,2,3,1).detach().cpu()
         sr_random_0 = sr_random_0.permute(0,2,3,1).detach().cpu()
         sr_random_0_transformed = sr_random_0_transformed.permute(0,2,3,1).detach().cpu()
@@ -571,6 +680,48 @@ class Trainer():
         # Save results if required
         if self.args.save_results:
             self.ckp.save_results(filename_hr, save_list, modes, self.scale, epoch=self.args.model_to_load, dataset='Val')
+
+    def test_model_equivariance(self, x, atol=1e-6, rtol=1e-5, scale=4):
+        """
+        Tests equivariance: f(g·x) ≈ g·f(x)
+        for model with group_tensor (G,Cg,Cg).
+        Input shape: (B,C,*spatial) with C % Cg == 0.
+        """
+
+        group_tensor = torch.tensor(np.load("./model/reynolds_utils/fcc_symmetry_group.npy"), dtype=torch.float32)
+        #group_tensor_inv = torch.tensor(np.load("./model/reynolds_utils/fcc_symmetry_group_inv.npy"), dtype=torch.float32)
+
+        self.model.eval()
+        with torch.no_grad():
+            B, C, *spatial = x.shape
+            G, Cg, _ = group_tensor.shape
+            assert C == Cg, f"Channels {C} must be same as group element {Cg}"
+
+            # f(x)
+            fx = self.model(x, 4)  # (B,Cout,*spatial_out)
+            _, Cout, *spatial_out = fx.shape
+
+            errors = []
+
+            # put g on the same device as x
+            group_tensor = group_tensor.to(x.device)  # (G,Cg,Cg)
+            for g in group_tensor:  # (Cg,Cg)
+                # g·x
+
+                gx = torch.einsum("ci,bi...->bc...", g, x)  # (B,C,*spatial)
+                f_gx = self.model(gx, scale)  # f(g·x)
+
+                # g·f(x)
+                g_fx = torch.einsum("ci,bi...->bc...", g, fx)  # (B,Cout,*spatial_out)
+
+                # max error for this g
+                diff = (f_gx - g_fx).abs().max().item()
+                errors.append(diff)
+
+            max_err = max(errors)
+           
+            passed = max_err < atol + rtol * fx.abs().max().item()
+            return passed, max_err, errors
 
     def test(self, is_trad_results= False):
         #import pdb; pdb.set_trace()
@@ -616,7 +767,7 @@ class Trainer():
                 #import pdb; pdb.set_trace() 
                 hr = hr.permute(0,2,3,1)
                 lr = lr.permute(0,2,3,1)
-                sr = sr.permute(0,2,3,1)
+                #sr = sr.permute(0,2,3,1)
  
                 save_list = [lr, hr, sr] + sr_up_trad
                 #import pdb; pdb.set_trace()
@@ -878,7 +1029,7 @@ class Trainer():
            
         return [_prepare(_l) for _l in l]
 
-    def upsample(mode, scale):
+    def upsample(self, mode, scale):
     
         upsampling = nn.Upsample(scale_factor=scale, mode=mode)
         sr_up = upsampling(lr)

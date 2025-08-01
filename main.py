@@ -6,7 +6,6 @@ import loss
 import os
 import numpy as np
 import random
-
 from utility import EBSD_Ti64DIC_dataset
 from argparser import Argparser
 from trainer import Trainer
@@ -54,7 +53,7 @@ if checkpoint.ok:
     print("HR Val Path:", hr_val_data_path)
     
     dataset_train = EBSD_Ti64DIC_dataset(args, lr_train_data_path, hr_train_data_path, upsample_2d=args.upsample_2d) 
-    dataset_val = EBSD_Ti64DIC_dataset(args, lr_val_data_path, hr_val_data_path, is_Train=False) 
+    dataset_val = EBSD_Ti64DIC_dataset(args, lr_val_data_path, hr_val_data_path, upsample_2d=args.upsample_2d, is_Train=False) 
 
     data_loader_train = DataLoader(dataset=dataset_train, batch_size=args.batch_size, 
                              num_workers= 16, 
@@ -75,7 +74,6 @@ if checkpoint.ok:
     
     while not t.terminate():
         t.train()
-    
         if t.is_val():
             t.val_error()
 

@@ -1,7 +1,7 @@
 #!/bin/sh
 
 CUDA_VISIBLE_DEVICES=5 python -m main.py \
-    --input_dir '/data/home/umang/Materials/Materials_data_mount/materials/fz_reduced/Open_718_Z_Upsampling' \
+    --input_dir '/data/home/umang/Materials/Materials_data_mount/fz_reduced/Open_718_Z_Upsampling' \
     --hr_data_dir 'Train/HR_Images/preprocessed_imgs_1D' \
     --val_lr_data_dir 'Val/LR_Images/X4/preprocessed_imgs_1D' \
     --val_hr_data_dir 'Val/HR_Images/preprocessed_imgs_1D' \
@@ -14,12 +14,11 @@ CUDA_VISIBLE_DEVICES=5 python -m main.py \
     --n_resgroups 10 \
     --n_feats 64 \
     --n_channels 4 \
-    --n_scale 4 \
     --save 'equivariant_reynolds' \
     --loss '1*MisOrientation' \
     --dist_type "minimum_angle_transformation"\
     --patch_size 64 \
-    --batch_size 1 \
+    --batch_size 10 \
     --scale 4 \
     --val_freq 5 \
     --save_model_freq 100 \

@@ -55,6 +55,8 @@ class EBSD_Ti64DIC_dataset(data.Dataset):
 
             lr =  np.load(f'{filepath_lr}')
             hr = np.load(f'{filepath_hr}')
+            if self.upsample_2D:
+                lr = common.downsample(hr, self.args.scale)
 
         lr, hr = common.set_channel([lr, hr], self.args.n_channels)
         lr, hr = common.np2Tensor([lr, hr], self.args.rgb_range)
@@ -65,7 +67,7 @@ class EBSD_Ti64DIC_dataset(data.Dataset):
         #filename_lr = os.path.basename(filepath_lr)                                                
         #filename_lr = os.path.splitext(filename_lr)[0]                                                                                    
          
-        return (lr, hr,filename_hr, filename_hr) 
+        return (lr, hr, filename_hr, filename_hr) 
 
     def __getitem__(self, index):
      
@@ -81,7 +83,7 @@ class EBSD_Ti64DIC_dataset(data.Dataset):
     def _get_patch(self, lr, hr, patch_size):                                                                                                                                                                                       
         scale = self.args.scale                                                                                                             
         if self.upsample_2D:
-            lr, hr = common.get_patch( lr, hr, patch_size, scale)
+            lr, hr = common.get_patch(lr, hr, patch_size, scale)
         else:
             lr, hr = common.get_patch_1D(lr, hr, patch_size, scale) 
                                                                                                                                   
@@ -183,8 +185,6 @@ class Misorientation_dist:
             loss = self.act_loss(sr, hr)
         return loss
 
-
- 
 class timer():
     def __init__(self):
         self.acc = 0
@@ -345,7 +345,7 @@ class checkpoint():
 
             filename = os.path.join(output_dir, f'{file_name}_x{scale}')
 
-            if self.args.n_colors != 3:
+            if self.args.n_channels != 3:
                 for ch_num, channel in enumerate(channels):
                     fig, axes = plt.subplots((len(postfix) + 2) // 3, 3, figsize=(14, 12), constrained_layout=True)
                     fig.suptitle(f'{dataset} data: Filename:{file_name}_{channel}', fontweight="bold")

@@ -40,7 +40,7 @@ file_locs = file_locs_hr + file_locs_sr
 import pdb; pdb.set_trace() 
 # get all npy files location in npy_file_dir
 # Get all .npy file locations in npy_file_dir (recursively)
-all_npy_files = sorted(glob.glob(f'{npy_file_dir}/**/*.npy', recursive=True))
+#all_npy_files = sorted(glob.glob(f'{npy_file_dir}/**/*.npy', recursive=True))
 #print("All npy files found:", all_npy_files)
 #file_locs = all_npy_files
 total_file = len(file_locs)

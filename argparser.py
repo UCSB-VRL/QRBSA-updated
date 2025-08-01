@@ -60,8 +60,6 @@ class Argparser:
         
         arg_parser.add_argument('--n_channels', type=int, default=4,
                                 help='number of input channels')
-        arg_parser.add_argument('--n_scale', type=int, default=3,
-                                help='number of channels to use')
         arg_parser.add_argument('--n_feats', type=int, default=64,
                                 help='number of feature maps')
         
