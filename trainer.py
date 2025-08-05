@@ -142,7 +142,6 @@ class Trainer():
         if os.path.exists(iteration_file):
             os.remove(iteration_file)
         
-
     def prepare_lr_transformed(self, lr, random_quats_conj, syms_ext, T=None):
         if T is None:
             T = self.T
@@ -376,8 +375,6 @@ class Trainer():
             
             # sr_transformed = sr_transformed.reshape(B,T, C, -1)
             # sr_transformed= torch.gather(sr_transformed, dim=1, index=median_indices)  
-
-
     
             # sr_transformed = sr_transformed / (torch.norm(sr_transformed, dim=2, keepdim=True) + 1e-12)
             # sr_transformed= sr_transformed.reshape(B, C, H, W)

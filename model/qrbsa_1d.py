@@ -45,7 +45,6 @@ class PixelShuffle1D(torch.nn.Module):
 
         return x
 
-
 class PixelUnshuffle1D(torch.nn.Module):
     """
     Inverse of 1D pixel shuffler
@@ -71,7 +70,6 @@ class PixelUnshuffle1D(torch.nn.Module):
         x = x.permute(0, 3, 1, 2).contiguous()
         x = x.view([batch_size, short_channel_len, short_width])
         return x
-
 
 class Upsampler1D(nn.Module):
     def __init__(self, kernel_size, scale, n_feat, bn=False, act=False, bias=True):
@@ -106,7 +104,6 @@ class Upsampler1D(nn.Module):
 
         else:
             raise NotImplementedError
-
 
 class QRBSA_1D(nn.Module):
     def __init__(self, args):

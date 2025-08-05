@@ -5,7 +5,7 @@ import torch.nn.functional as F
 import numpy as np
 
 # from model.quat_utils.Qops_with_QSN import conv2d, Residual_SA
-from model.quat_utils.quaternion_layers import QuaternionConv, QuaternionTransposeConv
+from model.quat_utils.quaternion_layers import QuaternionConv, QuaternionTransposeConv, PixelShuffle2D
 
 # from einops import rearrange
 # ─── requirements ───────────────────────────────────────────────────────────────
@@ -20,6 +20,49 @@ import os
 
 def make_model(args):
     return Reynolds_QSR(args)
+  
+class EquivariantReynoldsWrap(nn.Module):
+    """
+    Reynolds operator wrapper: enforces equivariance for any module fn
+    under a group action represented by group_tensor (G, Cg, Cg).
+    Input/output channel dims must be multiples of Cg.
+    Works with inputs (B, C, *spatial) for 1D/2D/3D ops.
+    """
+
+    def __init__(
+        self, fn: nn.Module, group_tensor: torch.Tensor, group_tensor_inv: torch.Tensor
+    ):
+        super().__init__()
+        self.fn = fn
+        self.register_buffer("group_tensor", group_tensor.to(torch.float32))  # (G, Cg, Cg)
+        self.register_buffer("group_tensor_inv", group_tensor_inv.to(torch.float32))
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        B, C, *spatial_in = x.shape
+        G, Cg, _ = self.group_tensor.shape
+        assert C % Cg == 0, f"Channels {C} must be multiple of {Cg}"
+        n_feats = C // Cg
+
+        # --- Lift: apply group action g·x ---
+        x = x.view(B, n_feats, Cg, *spatial_in)  # (B,n_feats,Cg,*spatial)
+        gamma_x = torch.einsum("gci,bni...->bgnc...", self.group_tensor, x)
+        gamma_x = gamma_x.reshape(B * G, n_feats * Cg, *spatial_in)  # (B*G,C,*spatial)
+
+        # --- Apply wrapped fn ---
+        fx = self.fn(gamma_x)  # (B*G,Cout,*spatial_out)
+        BGO, Cout, *spatial_out = fx.shape
+        assert BGO == B * G
+        assert Cout % Cg == 0, f"fn must output multiple of {Cg}, got {Cout}"
+        n_feats_out = Cout // Cg
+
+        # --- Project back with g⁻¹ ---
+        fx = fx.view(
+            B, G, n_feats_out, Cg, *spatial_out
+        )  # (B,G,n_feats_out,Cg,*spatial)
+        fx = torch.einsum("gci,bgni...->bgnc...", self.group_tensor_inv, fx)
+
+        # --- Average over group and return ---
+        return fx.mean(dim=1).reshape(B, Cout, *spatial_out)
 
 ### TRANSPOSE CONV BASED UPSAMPLER ####
 class Upsampler2DQuaternionTransposeConv(nn.Module):
@@ -56,6 +99,20 @@ class Upsampler2DQuaternionTransposeConv(nn.Module):
         # Adding dropout layer after the convolution layer
         #self.dropout = nn.Dropout(p=dropout_prob)  # Dropout with specified probability
         
+        self.transposed_conv = EquivariantReynoldsWrap(
+            QuaternionTransposeConv(
+            in_channels=scale*scale*n_feats,
+            out_channels=n_feats,
+            kernel_size=(scale, scale),
+            stride=(scale, scale),
+            padding=(1, 1),
+            output_padding=(2, 2),
+            bias=True
+            ),
+            group_tensor=group_tensor,
+            group_tensor_inv=group_tensor_inv,
+        )
+
         self.transposed_conv1 = EquivariantReynoldsWrap(
             QuaternionTransposeConv(
                 in_channels=scale*scale*n_feats,
@@ -84,7 +141,6 @@ class Upsampler2DQuaternionTransposeConv(nn.Module):
             group_tensor_inv=group_tensor_inv,
         )
 
-
         self.post_conv_layer = EquivariantReynoldsWrap(
             QuaternionConv(
                 in_channels=n_feats,
@@ -97,7 +153,6 @@ class Upsampler2DQuaternionTransposeConv(nn.Module):
                 group_tensor_inv=group_tensor_inv,
             )
 
-
     def forward(self, x):
         try:
             # print("Input:", x.shape)
@@ -106,85 +161,76 @@ class Upsampler2DQuaternionTransposeConv(nn.Module):
             x = self.conv_layer(x)
             # print("After conv:", x.shape)
             #x = self.conv_layer(x)
-            x = self.transposed_conv1(x)
-            x = self.transposed_conv2(x)
+            #x = self.transposed_conv1(x)
+            #x = self.transposed_conv2(x)
+            
+            # left kernel 
+            x= self.transposed_conv(x)
+
+            # right kernel
+            # x = self.transposed_conv(x)
+
             # print("After transpose:", x.shape)
             x = self.post_conv_layer(x)
-            x = self.post_conv_layer(x)
+            #x = self.post_conv_layer(x)
             # print("After post_conv:", x.shape)
             # x = x.permute(0, 1, 3, 2)
             # print("Permuted Output:", x.shape)
             return x
         except Exception as e:
             print("Error in Upsampler2DQuaternionTransposeConv:", e)
-            # import pdb
 
-            # pdb.set_trace()
-            # raise NotImplementedError
-        # try:
-        #     x = x.permute(0, 1, 3, 2)
-        #     x = self.conv_layer(x)
-        #     x = self.transposed_conv(x)
-        #     x = self.post_conv_layer(x)
-        #     # x= self.post_conv_layer(x)
-        #     # print(x.shape)
-        #     # x = self.dropout(x)
-        #     # x = rearrange(x, 'd0 d1 (d2 d3) -> d0 d1 d2 d3', d0=bsize, d1=ch, d2=h, d3=2*w)
-
-        #     x = x.permute(0, 1, 3, 2)
-        #     # import pdb; pdb.set_trace()
-        #     # print('Upsampler1D: x.shape:', x.shape)
-        #     return x
-
-        # except Exception as e:
-        #     print("Error in Upsampler1D_transpose_conv_1pass:", e)
-        #     import pdb
-
-        #     pdb.set_trace()
-        #     raise NotImplementedError
-
-class EquivariantReynoldsWrap(nn.Module):
-    """
-    Reynolds operator wrapper: enforces equivariance for any module fn
-    under a group action represented by group_tensor (G, Cg, Cg).
-    Input/output channel dims must be multiples of Cg.
-    Works with inputs (B, C, *spatial) for 1D/2D/3D ops.
-    """
-
+### Pixelshuffle 2D based UPSAMPLER ####
+class Upsampler2DQuaternionPixelShuffle(nn.Module):
     def __init__(
-        self, fn: nn.Module, group_tensor: torch.Tensor, group_tensor_inv: torch.Tensor
+        self,
+        kernel_size,
+        scale,
+        n_feats,
+        group_tensor,
+        group_tensor_inv,
+        bn=False,
+        act=False,
+        bias=True,
+        dropout_prob=0.2,
     ):
-        super().__init__()
-        self.fn = fn
-        self.register_buffer("group_tensor", group_tensor)  # (G, Cg, Cg)
-        self.register_buffer("group_tensor_inv", group_tensor_inv)
+        super(Upsampler2DQuaternionPixelShuffle, self).__init__()
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        B, C, *spatial_in = x.shape
-        G, Cg, _ = self.group_tensor.shape
-        assert C % Cg == 0, f"Channels {C} must be multiple of {Cg}"
-        n_feats = C // Cg
+        # self.up_sample = nn.Upsample(scale_factor=2, mode='linear', align_corners=True)
+        self.scale = scale
+        self.n_feat = n_feats
 
-        # --- Lift: apply group action g·x ---
-        x = x.view(B, n_feats, Cg, *spatial_in)  # (B,n_feats,Cg,*spatial)
-        gamma_x = torch.einsum("gci,bni...->bgnc...", self.group_tensor, x)
-        gamma_x = gamma_x.reshape(B * G, n_feats * Cg, *spatial_in)  # (B*G,C,*spatial)
+        # Adding dropout layer after the convolution layer
+        #self.dropout = nn.Dropout(p=dropout_prob)  # Dropout with specified probability
+        self.conv_layer = EquivariantReynoldsWrap(
+            QuaternionConv(
+                in_channels=n_feats,
+                out_channels=scale*scale*n_feats,
+                kernel_size=kernel_size,
+                stride=1,
+                padding=kernel_size // 2,
+                ),
+                group_tensor=group_tensor,
+                group_tensor_inv=group_tensor_inv,
+            )
 
-        # --- Apply wrapped fn ---
-        fx = self.fn(gamma_x)  # (B*G,Cout,*spatial_out)
-        BGO, Cout, *spatial_out = fx.shape
-        assert BGO == B * G
-        assert Cout % Cg == 0, f"fn must output multiple of {Cg}, got {Cout}"
-        n_feats_out = Cout // Cg
+        self.pixel_shuffle = EquivariantReynoldsWrap(
+            PixelShuffle2D(upscale_factor=scale),
+            group_tensor=group_tensor,
+            group_tensor_inv=group_tensor_inv,
+        )
 
-        # --- Project back with g⁻¹ ---
-        fx = fx.view(
-            B, G, n_feats_out, Cg, *spatial_out
-        )  # (B,G,n_feats_out,Cg,*spatial)
-        fx = torch.einsum("gci,bgni...->bgnc...", self.group_tensor_inv, fx)
-
-        # --- Average over group and return ---
-        return fx.mean(dim=1).reshape(B, Cout, *spatial_out)
+    def forward(self, x):
+        try:
+            # print("Input:", x.shape)
+            # upsample feature using convolution to match the expected input for pixel shuffle
+            x = self.conv_layer(x)
+            x = self.pixel_shuffle(x)
+            # print("After pixel shuffle:", x.shape)
+            return x
+        
+        except Exception as e:
+            print("Error in Upsampler2DQuaternionPixelShuffle:", e)
 
 class Reynolds_QSR(nn.Module):
     def __init__(self, args):
@@ -206,33 +252,6 @@ class Reynolds_QSR(nn.Module):
             torch.tensor(np.load(args.syms_inv_np_path), dtype=torch.float32),
         )  # (G, C, C) where C=4
 
-        # m_head = [
-        #     # EquivariantReynoldsWrap(
-        #     QuaternionConv(
-        #         in_channels=n_channels,
-        #         out_channels=n_feats,
-        #         kernel_size=kernel_size,
-        #         stride=1,
-        #         padding=kernel_size // 2,
-        #     ),
-        #     # group_tensor=self.group_tensor,
-        #     # group_tensor_inv=self.group_tensor_inv,
-        #     # )
-        # ]
-        # m_tail = [
-        #     Upsampler2DQuaternionTransposeConv(
-        #         kernel_size=kernel_size,
-        #         scale=scale,
-        #         n_feats=n_feats,
-        #     ),
-        #     QuaternionConv(
-        #         in_channels=n_feats,
-        #         out_channels=n_channels,
-        #         kernel_size=kernel_size,
-        #         stride=1,
-        #         padding=kernel_size // 2,
-        #     ),
-        # ]
         m_head = [
             EquivariantReynoldsWrap(
                 QuaternionConv(
@@ -247,27 +266,56 @@ class Reynolds_QSR(nn.Module):
             )
         ]
 
-        m_tail = [
-                Upsampler2DQuaternionTransposeConv(
-                    kernel_size=kernel_size,
-                    scale=scale,
-                    n_feats=n_feats,
-                    group_tensor=self.group_tensor,
-                    group_tensor_inv=self.group_tensor_inv,
-                ),
+        #### 
+        # tail based on transpose conv
+        ####
 
-            EquivariantReynoldsWrap(
-                QuaternionConv(
-                    in_channels=n_feats,
-                    out_channels=n_channels,
-                    kernel_size=kernel_size,
-                    stride=1,
-                    padding=kernel_size // 2,
-                ),
+        # m_tail = [
+        #         Upsampler2DQuaternionTransposeConv(
+        #             kernel_size=kernel_size,
+        #             scale=scale,
+        #             n_feats=n_feats,
+        #             group_tensor=self.group_tensor,
+        #             group_tensor_inv=self.group_tensor_inv,
+        #         ),
+
+        #     EquivariantReynoldsWrap(
+        #         QuaternionConv(
+        #             in_channels=n_feats,
+        #             out_channels=n_channels,
+        #             kernel_size=kernel_size,
+        #             stride=1,
+        #             padding=kernel_size // 2,
+        #         ),
+        #         group_tensor=self.group_tensor,
+        #         group_tensor_inv=self.group_tensor_inv,
+        #     ),
+        # ]
+
+        ############
+        #  tail based on pixel shuffle
+        ############
+        m_tail = [
+            Upsampler2DQuaternionPixelShuffle(
+                kernel_size=kernel_size,
+                scale=scale,
+                n_feats=n_feats,
                 group_tensor=self.group_tensor,
                 group_tensor_inv=self.group_tensor_inv,
             ),
+           EquivariantReynoldsWrap(
+               QuaternionConv(
+                   in_channels=n_feats,
+                   out_channels=n_channels,
+                   kernel_size=kernel_size,
+                   stride=1,
+                   padding=kernel_size // 2,
+               ),
+               group_tensor=self.group_tensor,
+               group_tensor_inv=self.group_tensor_inv,
+           ),
         ]
+
         self.head = nn.Sequential(*m_head)
         #self.body = nn.Sequential(*m_body)
         self.tail = nn.Sequential(*m_tail)
@@ -305,7 +353,6 @@ class Reynolds_QSR(nn.Module):
             elif strict:
                 if name.find("tail") == -1:
                     raise KeyError('unexpected key "{}" in state_dict'.format(name))
-
 
 if __name__ == "__main__":
 

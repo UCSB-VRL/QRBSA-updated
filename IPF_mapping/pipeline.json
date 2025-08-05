@@ -5,7 +5,7 @@
         "Filter_Human_Label": "Read DREAM.3D Data File",
         "Filter_Name": "DataContainerReader",
         "Filter_Uuid": "{043cbde5-3878-5718-958f-ae75714df0df}",
-        "InputFile": "/data/home/umang/Materials/QRBSA-data-augmentation/Quaternion_experiments/reynolds_qsr_working/results/Test_model_best/Open_718/Dream3D/x_normal_HR.dream3d",
+        "InputFile": "/data/home/umang/Materials/QRBSA-data-augmentation/Quaternion_experiments/DEBUG_SESSION/results/Test_model_best/Open_718/Dream3D/x_normal_HR.dream3d",
         "InputFileDataContainerArrayProxy": {
             "Data Containers": [
                 {
@@ -157,7 +157,7 @@
         "Filter_Human_Label": "Write DREAM.3D Data File",
         "Filter_Name": "DataContainerWriter",
         "Filter_Uuid": "{3fcd4c43-9d75-5b86-aad4-4441bc914f37}",
-        "OutputFile": "/data/home/umang/Materials/QRBSA-data-augmentation/Quaternion_experiments/reynolds_qsr_working/results/Test_model_best/Open_718/Dream3D/x_normal_HR.dream3d",
+        "OutputFile": "/data/home/umang/Materials/QRBSA-data-augmentation/Quaternion_experiments/DEBUG_SESSION/results/Test_model_best/Open_718/Dream3D/x_normal_HR.dream3d",
         "WriteTimeSeries": 0,
         "WriteXdmfFile": 1
     },

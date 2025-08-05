@@ -17,7 +17,7 @@
 # 3. Run the script
 
 current_dir=$(pwd)
-modelname="reynolds_qsr_working"
+modelname="DEBUG_SESSION"
 exp_type="minimum_angle_transform"
 modeltoload="model_best"
 filetype="HR"

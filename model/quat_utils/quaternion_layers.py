@@ -263,6 +263,43 @@ class QuaternionConv(Module):
         )
 
 
+class PixelShuffle2D(torch.nn.Module):
+    """
+    2D Pixel Shuffler
+    Upscales height and width, downscales channel length
+    "short" is input, "long" is output
+    """
+
+    def __init__(self, upscale_factor):
+        super(PixelShuffle2D, self).__init__()
+        self.upscale_factor = upscale_factor
+
+    def forward(self, x):
+        batch_size = x.shape[0]
+        short_channel_len = x.shape[1]
+        short_height = x.shape[2]
+        short_width = x.shape[3]
+
+        long_channel_len = short_channel_len // (self.upscale_factor ** 2)
+        long_height = self.upscale_factor * short_height
+        long_width = self.upscale_factor * short_width
+
+        x = x.contiguous().view(
+            [
+                batch_size,
+                self.upscale_factor,
+                self.upscale_factor,
+                long_channel_len,
+                short_height,
+                short_width,
+            ]
+        )
+        x = x.permute(0, 3, 4, 1, 5, 2).contiguous()
+        x = x.view(batch_size, long_channel_len, long_height, long_width)
+
+        return x
+
+
 class QuaternionLinearAutograd(Module):
     r"""Applies a quaternion linear transformation to the incoming data. A custom
     Autograd function is call to drastically reduce the VRAM consumption. Nonetheless, computing
