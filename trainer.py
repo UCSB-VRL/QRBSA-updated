@@ -12,7 +12,7 @@ from torch.nn import functional as F
 from tqdm import tqdm
 from collections import defaultdict 
 from mat_sci_torch_quats.quats_old import fz_reduce, scalar_last2first, scalar_first2last, outer_prod
-from mat_sci_torch_quats.symmetries import hcp_syms, fcc_syms  
+from mat_sci_torch_quats.symmetries import hcp_syms, fcc_syms
 from collections import defaultdict
 import time
 from thop import profile

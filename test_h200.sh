@@ -1,18 +1,32 @@
-#!/bin/sh
+# #!/bin/sh
 
-CUDA_VISIBLE_DEVICES=5 python test.py \
-    --input_dir '/data/umang/materials/fz_reduced/Open_718_Z_Upsampling' \
-    --model 'so3reynolds_qrbsa_1d' \
-    --patch_size 256 \
-    --n_resblocks 10 \
-    --n_resgroups 10 \
-    --n_feats 128 \
-    --n_colors 4 \
-    --save 'reynolds_wrapper_original_qrbsa_1d' \
-    --resume -1 \
-    --model_to_load 'model_best' \
-    --test_dataset_type 'Test' \
+CUDA_VISIBLE_DEVICES=3 python test.py \
+    --model_to_load "model_best" \
+    --test_dataset_type "Test" \
     --test_only \
-    --dist_type 'minimum_angle_transformation' \
-    --scale 4 \
-    --syms_type 'FCC'
+    --dist_type "minimum_angle_transformation" \
+    --input_dir "/data/umang/materials/fz_reduced/Open_718_Z_Upsampling" \
+    --hr_data_dir "Train/HR_Images/preprocessed_imgs_1D" \
+    --val_lr_data_dir "Val/LR_Images/X4/preprocessed_imgs_1D" \
+    --val_hr_data_dir "Val/HR_Images/preprocessed_imgs_1D" \
+    --syms_np_path "./model/reynolds_utils/fcc_symmetry_group.npy" \
+    --syms_inv_np_path "./model/reynolds_utils/fcc_symmetry_group_inv.npy" \
+    --upsample_2d \
+    --model "reynolds_qsr" \
+    --n_resblocks "0" \
+    --n_resgroups "0" \
+    --n_feats "256" \
+    --n_channels "4" \
+    --save "reynolds_1layer_transpose_conv_256dim" \
+    --loss "1*MisOrientation" \
+    --patch_size "64" \
+    --batch_size "1" \
+    --scale "4" \
+    --val_freq "1" \
+    --save_model_freq "100" \
+    --syms_type "FCC" \
+    --syms_req \
+    --prog_patch \
+    --lr "2e-5" \
+    --include_consistency_loss "False" \
+    --weight_decay "1e-5"

@@ -20,7 +20,7 @@ import sys
 
 
 class QuaternionTransposeConv(Module):
-    r"""Applies a Quaternion Transposed Convolution (or Deconvolution) to the incoming data."""
+    """Applies a Quaternion Transposed Convolution (or Deconvolution) to the incoming data."""
 
     def __init__(
         self,
@@ -512,3 +512,156 @@ class QuaternionLinear(Module):
             + str(self.seed)
             + ")"
         )
+
+
+class QuaternionAverageMerge(Module):
+    r"""Averages two quaternion feature maps, assuming they are aligned."""
+
+    def __init__(self, feat=64):
+        super(QuaternionAverageMerge, self).__init__()
+        self.feat = feat
+
+    def forward(self, x1, x2):
+        # x1 is B,C,2H,2W
+        # x2 is B,C,2H,2W
+        # We assume x1 and x2 are aligned, i.e., x1 covers even rows/cols and x2 covers odd rows/cols.
+        # We average the overlapping pixels for smoothness.
+        B, C, H, W = x1.shape
+        out = torch.zeros((B, C, 2 * H, 2 * W), dtype=x1.dtype, device=x1.device)
+        mask = torch.zeros_like(out)
+
+        # Fill even indices with x1
+        out[:, :, ::2, ::2] = x1
+        # Fill odd indices with x2, which is offset by 1.
+        # if x2 exceeds the bounds, it should be ignored
+        out[:, :, 1::2, 1::2] = x2[:, :, :H, :W]  # Ensure x2 is sliced to match output size
+
+        # x = out
+        return out
+
+    def __repr__(self):
+        return self.__class__.__name__ + "(feat=" + str(self.feat) + ")"
+    
+
+class Quaternion2Dslerp(Module):
+    """Applies a 2D Slerp Upsampling to the incoming data."""
+
+    def __init__(self, n_feats, upscale_factor):
+        super(Quaternion2Dslerp, self).__init__()
+        self.n_feats = n_feats
+        self.upscale_factor = upscale_factor
+
+    def slerp(self, q1, q2, t):
+        """
+        Spherical linear interpolation between quaternions q1 and q2.
+        q1, q2: quaternions of shape (..., 4) where last dim is [w, x, y, z]
+        t: interpolation parameter between 0 and 1
+        """
+        # Ensure quaternions are normalized
+        q1 = F.normalize(q1, p=2, dim=-1)
+        q2 = F.normalize(q2, p=2, dim=-1)
+        
+        # Compute dot product
+        dot = torch.sum(q1 * q2, dim=-1, keepdim=True)
+        
+        # If dot product is negative, use -q2 to take shorter path
+        q2 = torch.where(dot < 0, -q2, q2)
+        dot = torch.abs(dot)
+        
+        # If quaternions are very close, use linear interpolation
+        theta = torch.acos(torch.clamp(dot, 0, 1))
+        sin_theta = torch.sin(theta)
+        
+        # Handle case where sin_theta is close to 0 (quaternions are nearly identical)
+        use_lerp = sin_theta < 1e-6
+        
+        # SLERP formula
+        t = t.unsqueeze(-1) if t.dim() < q1.dim() else t
+        w1 = torch.sin((1 - t) * theta) / sin_theta
+        w2 = torch.sin(t * theta) / sin_theta
+        
+        # Linear interpolation for nearly identical quaternions
+        w1_lerp = 1 - t
+        w2_lerp = t
+        
+        w1 = torch.where(use_lerp, w1_lerp, w1)
+        w2 = torch.where(use_lerp, w2_lerp, w2)
+        
+        return w1 * q1 + w2 * q2
+
+    def forward(self, x):
+        # x is (B, C, H, W) where C should be divisible by 4 for quaternions
+        B, C, H, W = x.shape
+        
+        # Reshape to group quaternion components: (B, C//4, 4, H, W)
+        x_quat = x.view(B, C // 4, 4, H, W)
+        
+        # Calculate new dimensions
+        new_H = H * self.upscale_factor
+        new_W = W * self.upscale_factor
+        
+        # Create output tensor
+        output = torch.zeros(B, C // 4, 4, new_H, new_W, device=x.device, dtype=x.dtype)
+        
+        # Fill in the known values at integer positions
+        for i in range(H):
+            for j in range(W):
+                output[:, :, :, i * self.upscale_factor, j * self.upscale_factor] = x_quat[:, :, :, i, j]
+        
+        # Perform SLERP interpolation for intermediate positions
+        for i in range(new_H):
+            for j in range(new_W):
+                # Skip if this is already an original sample point
+                if i % self.upscale_factor == 0 and j % self.upscale_factor == 0:
+                    continue
+                
+                # Find the four nearest original sample points
+                i_low = (i // self.upscale_factor) * self.upscale_factor
+                i_high = min(i_low + self.upscale_factor, (H - 1) * self.upscale_factor)
+                j_low = (j // self.upscale_factor) * self.upscale_factor
+                j_high = min(j_low + self.upscale_factor, (W - 1) * self.upscale_factor)
+                
+                # Convert back to original indices
+                i_low_orig = i_low // self.upscale_factor
+                i_high_orig = min(i_high // self.upscale_factor, H - 1)
+                j_low_orig = j_low // self.upscale_factor
+                j_high_orig = min(j_high // self.upscale_factor, W - 1)
+                
+                # Interpolation weights
+                if i_high != i_low:
+                    t_i = (i - i_low) / (i_high - i_low)
+                else:
+                    t_i = 0.0
+                    
+                if j_high != j_low:
+                    t_j = (j - j_low) / (j_high - j_low)
+                else:
+                    t_j = 0.0
+                
+                # Get the four corner quaternions
+                q00 = x_quat[:, :, :, i_low_orig, j_low_orig]  # top-left
+                q01 = x_quat[:, :, :, i_low_orig, j_high_orig]  # top-right
+                q10 = x_quat[:, :, :, i_high_orig, j_low_orig]  # bottom-left
+                q11 = x_quat[:, :, :, i_high_orig, j_high_orig]  # bottom-right
+                
+                # Bilinear SLERP: interpolate along i-axis first, then j-axis
+                if i_high_orig != i_low_orig:
+                    q0 = self.slerp(q00, q10, torch.tensor(t_i, device=x.device))  # left edge
+                    q1 = self.slerp(q01, q11, torch.tensor(t_i, device=x.device))  # right edge
+                else:
+                    q0 = q00
+                    q1 = q01
+                
+                # Final interpolation along j-axis
+                if j_high_orig != j_low_orig:
+                    q_final = self.slerp(q0, q1, torch.tensor(t_j, device=x.device))
+                else:
+                    q_final = q0 
+                
+                output[:, :, :, i, j] = q_final
+        
+        # Reshape back to original format: (B, C, new_H, new_W)
+        return output.view(B, C, new_H, new_W)
+
+    def __repr__(self):
+        return self.__class__.__name__ + "(upscale_factor=" + str(self.upscale_factor) + ")"

@@ -17,7 +17,7 @@
 # 3. Run the script
 
 current_dir=$(pwd)
-modelname="DEBUG_SESSION"
+modelname="reynolds_1layer_transpose_conv_256dim"
 exp_type="minimum_angle_transform"
 modeltoload="model_best"
 filetype="HR"
