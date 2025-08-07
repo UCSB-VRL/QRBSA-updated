@@ -15,7 +15,7 @@ CUDA_VISIBLE_DEVICES=5 python -m main.py \
     --n_resgroups 0 \
     --n_feats 64 \
     --n_channels 4 \
-    --save "reynolds_1layer_transpose_conv" \
+    --save "reynolds_2Dslerp" \
     --loss '1*MisOrientation' \
     --dist_type "minimum_angle_transformation"\
     --patch_size 64 \

@@ -554,114 +554,102 @@ class Quaternion2Dslerp(Module):
     def slerp(self, q1, q2, t):
         """
         Spherical linear interpolation between quaternions q1 and q2.
-        q1, q2: quaternions of shape (..., 4) where last dim is [w, x, y, z]
-        t: interpolation parameter between 0 and 1
+        q1, q2: (..., 4)
+        t: broadcastable tensor for interpolation weight
         """
-        # Ensure quaternions are normalized
-        q1 = F.normalize(q1, p=2, dim=-1)
-        q2 = F.normalize(q2, p=2, dim=-1)
+        # Ensure quaternions are normalized, but avoid zero vectors
+        q1_norm = torch.norm(q1, p=2, dim=-1, keepdim=True)
+        q2_norm = torch.norm(q2, p=2, dim=-1, keepdim=True)
         
-        # Compute dot product
+        # Prevent division by zero in normalization
+        q1_norm = torch.clamp(q1_norm, min=1e-8)
+        q2_norm = torch.clamp(q2_norm, min=1e-8)
+        
+        q1 = q1 / q1_norm
+        q2 = q2 / q2_norm
+        
         dot = torch.sum(q1 * q2, dim=-1, keepdim=True)
-        
-        # If dot product is negative, use -q2 to take shorter path
         q2 = torch.where(dot < 0, -q2, q2)
         dot = torch.abs(dot)
         
-        # If quaternions are very close, use linear interpolation
-        theta = torch.acos(torch.clamp(dot, 0, 1))
+        # Clamp dot product more conservatively to avoid numerical issues
+        dot = torch.clamp(dot, 0.0, 1.0 - 1e-7)
+        theta = torch.acos(dot)
         sin_theta = torch.sin(theta)
         
-        # Handle case where sin_theta is close to 0 (quaternions are nearly identical)
-        use_lerp = sin_theta < 1e-6
+        # Use more conservative threshold for linear interpolation
+        use_lerp = sin_theta < 1e-4
         
-        # SLERP formula
-        t = t.unsqueeze(-1) if t.dim() < q1.dim() else t
-        w1 = torch.sin((1 - t) * theta) / sin_theta
-        w2 = torch.sin(t * theta) / sin_theta
+        # Make sure t has the same number of dimensions as dot and can broadcast properly
+        while t.dim() < dot.dim():
+            t = t.unsqueeze(-1)
         
-        # Linear interpolation for nearly identical quaternions
+        # Prevent division by zero with larger epsilon
+        sin_theta_safe = torch.clamp(sin_theta, min=1e-6)
+        
+        w1 = torch.sin((1 - t) * theta) / sin_theta_safe
+        w2 = torch.sin(t * theta) / sin_theta_safe
         w1_lerp = 1 - t
         w2_lerp = t
         
         w1 = torch.where(use_lerp, w1_lerp, w1)
         w2 = torch.where(use_lerp, w2_lerp, w2)
         
-        return w1 * q1 + w2 * q2
+        result = w1 * q1 + w2 * q2
+        
+        # Ensure result is normalized to prevent accumulation of numerical errors
+        result_norm = torch.norm(result, p=2, dim=-1, keepdim=True)
+        result_norm = torch.clamp(result_norm, min=1e-8)
+        result = result / result_norm
+        
+        return result
 
     def forward(self, x):
-        # x is (B, C, H, W) where C should be divisible by 4 for quaternions
+        # x: (B, C, H, W), C % 4 == 0
         B, C, H, W = x.shape
-        
-        # Reshape to group quaternion components: (B, C//4, 4, H, W)
-        x_quat = x.view(B, C // 4, 4, H, W)
-        
-        # Calculate new dimensions
-        new_H = H * self.upscale_factor
-        new_W = W * self.upscale_factor
-        
-        # Create output tensor
-        output = torch.zeros(B, C // 4, 4, new_H, new_W, device=x.device, dtype=x.dtype)
-        
-        # Fill in the known values at integer positions
-        for i in range(H):
-            for j in range(W):
-                output[:, :, :, i * self.upscale_factor, j * self.upscale_factor] = x_quat[:, :, :, i, j]
-        
-        # Perform SLERP interpolation for intermediate positions
-        for i in range(new_H):
-            for j in range(new_W):
-                # Skip if this is already an original sample point
-                if i % self.upscale_factor == 0 and j % self.upscale_factor == 0:
-                    continue
-                
-                # Find the four nearest original sample points
-                i_low = (i // self.upscale_factor) * self.upscale_factor
-                i_high = min(i_low + self.upscale_factor, (H - 1) * self.upscale_factor)
-                j_low = (j // self.upscale_factor) * self.upscale_factor
-                j_high = min(j_low + self.upscale_factor, (W - 1) * self.upscale_factor)
-                
-                # Convert back to original indices
-                i_low_orig = i_low // self.upscale_factor
-                i_high_orig = min(i_high // self.upscale_factor, H - 1)
-                j_low_orig = j_low // self.upscale_factor
-                j_high_orig = min(j_high // self.upscale_factor, W - 1)
-                
-                # Interpolation weights
-                if i_high != i_low:
-                    t_i = (i - i_low) / (i_high - i_low)
-                else:
-                    t_i = 0.0
-                    
-                if j_high != j_low:
-                    t_j = (j - j_low) / (j_high - j_low)
-                else:
-                    t_j = 0.0
-                
-                # Get the four corner quaternions
-                q00 = x_quat[:, :, :, i_low_orig, j_low_orig]  # top-left
-                q01 = x_quat[:, :, :, i_low_orig, j_high_orig]  # top-right
-                q10 = x_quat[:, :, :, i_high_orig, j_low_orig]  # bottom-left
-                q11 = x_quat[:, :, :, i_high_orig, j_high_orig]  # bottom-right
-                
-                # Bilinear SLERP: interpolate along i-axis first, then j-axis
-                if i_high_orig != i_low_orig:
-                    q0 = self.slerp(q00, q10, torch.tensor(t_i, device=x.device))  # left edge
-                    q1 = self.slerp(q01, q11, torch.tensor(t_i, device=x.device))  # right edge
-                else:
-                    q0 = q00
-                    q1 = q01
-                
-                # Final interpolation along j-axis
-                if j_high_orig != j_low_orig:
-                    q_final = self.slerp(q0, q1, torch.tensor(t_j, device=x.device))
-                else:
-                    q_final = q0 
-                
-                output[:, :, :, i, j] = q_final
-        
-        # Reshape back to original format: (B, C, new_H, new_W)
-        return output.view(B, C, new_H, new_W)
+        upscale = self.upscale_factor
+        C4 = C // 4
+        x_quat = x.view(B, C4, 4, H, W)  # (B, C4, 4, H, W)
+
+        # Prepare grid for upsampling
+        new_H, new_W = H * upscale, W * upscale
+        device = x.device
+        dtype = x.dtype
+
+        # Generate normalized coordinates for the upsampled grid
+        grid_y = torch.linspace(0, H - 1, new_H, device=device)
+        grid_x = torch.linspace(0, W - 1, new_W, device=device)
+        grid_y, grid_x = torch.meshgrid(grid_y, grid_x, indexing='ij')  # (new_H, new_W)
+
+        y0 = torch.floor(grid_y).long().clamp(0, H - 1)
+        x0 = torch.floor(grid_x).long().clamp(0, W - 1)
+        y1 = (y0 + 1).clamp(0, H - 1)
+        x1 = (x0 + 1).clamp(0, W - 1)
+
+        wy = (grid_y - y0.float()).unsqueeze(0).unsqueeze(0).unsqueeze(0)  # (1,1,1,new_H,new_W)
+        wx = (grid_x - x0.float()).unsqueeze(0).unsqueeze(0).unsqueeze(0)  # (1,1,1,new_H,new_W)
+
+        # Gather the 4 corner quaternions for each output location
+        def gather_quat(y_idx, x_idx):
+            # y_idx, x_idx: (new_H, new_W)
+            idx = y_idx * W + x_idx  # flatten index
+            flat = x_quat.view(B, C4, 4, H * W)
+            out = flat[..., idx.view(-1)].view(B, C4, 4, new_H, new_W)
+            return out
+
+        q00 = gather_quat(y0, x0)  # top-left
+        q01 = gather_quat(y0, x1)  # top-right
+        q10 = gather_quat(y1, x0)  # bottom-left
+        q11 = gather_quat(y1, x1)  # bottom-right
+
+        # SLERP along y (vertical)
+        q0 = self.slerp(q00, q10, wy)  # left edge
+        q1 = self.slerp(q01, q11, wy)  # right edge
+
+        # SLERP along x (horizontal)
+        q_final = self.slerp(q0, q1, wx)  # (B, C4, 4, new_H, new_W)
+
+        return q_final.view(B, C, new_H, new_W)
 
     def __repr__(self):
         return self.__class__.__name__ + "(upscale_factor=" + str(self.upscale_factor) + ")"
