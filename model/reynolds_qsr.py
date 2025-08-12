@@ -119,83 +119,115 @@ class Upsampler2DQuaternionTransposeConv(nn.Module):
 
 
 
-        #####
-        # Double left and right transpose convs that together tile the area and cover each pixel equally
-        #####
+        # #####
+        # # Double left and right transpose convs that together tile the area and cover each pixel equally
+        # #####
 
-        # Left kernel: covers even rows/cols (no offset)
-        # Left kernel: covers even rows/cols (no offset)
-        self.transposed_conv_left = EquivariantReynoldsWrap(
-            QuaternionTransposeConv(
-            in_channels=scale * scale * n_feats,
-            out_channels=n_feats,
-            kernel_size=(scale, scale),
-            stride=(2, 2),
-            padding=kernel_size // 2,
-            output_padding=(0, 0),
-            bias=True,
-            ),
-            group_tensor=group_tensor,
-            group_tensor_inv=group_tensor_inv,
-        )
-        # Right kernel: covers odd rows/cols (offset by 1)
-        self.transposed_conv_right = EquivariantReynoldsWrap(
-            QuaternionTransposeConv(
-            in_channels=scale * scale * n_feats,
-            out_channels=n_feats,
-            kernel_size=(scale, scale),
-            stride=(2, 2),
-            padding=kernel_size // 2,
-            output_padding=(1, 1),
-            bias=True,
-            ),
-            group_tensor=group_tensor,
-            group_tensor_inv=group_tensor_inv,
-        )
-
-        # Merging code for smooth tiling and equal coverage:
-        # In the forward() method, after getting x1 and x2:
-        # x1 covers even rows/cols, x2 covers odd rows/cols.
-        # We interleave and average overlapping pixels for smoothness.
-        # Use AverageMerge for merging x1 and x2
-        self.merge_layer = EquivariantReynoldsWrap(
-            QuaternionAverageMerge(
-                in_channels=n_feats),
-                group_tensor=group_tensor,
-                group_tensor_inv=group_tensor_inv,
-        )
-
-        #####
-        # Iterative transpose conv
-        #####
-
-        # self.transposed_conv1 = EquivariantReynoldsWrap(
+        # # Left kernel: covers even rows/cols (no offset)
+        # # Left kernel: covers even rows/cols (no offset)
+        # self.transposed_conv_left = EquivariantReynoldsWrap(
         #     QuaternionTransposeConv(
-        #         in_channels=scale*scale*n_feats,
-        #         out_channels=scale*n_feats,
-        #         kernel_size=(4,4),
-        #         stride=(2,2),
-        #         padding=(1,1),
-        #         output_padding=(0,0),
-        #         bias=True
+        #     in_channels=scale * scale * n_feats,
+        #     out_channels=n_feats,
+        #     kernel_size=(scale, scale),
+        #     stride=(2, 2),
+        #     padding=kernel_size // 2,
+        #     output_padding=(0, 0),
+        #     bias=True,
+        #     ),
+        #     group_tensor=group_tensor,
+        #     group_tensor_inv=group_tensor_inv,
+        # )
+        # # Right kernel: covers odd rows/cols (offset by 1)
+        # self.transposed_conv_right = EquivariantReynoldsWrap(
+        #     QuaternionTransposeConv(
+        #     in_channels=scale * scale * n_feats,
+        #     out_channels=n_feats,
+        #     kernel_size=(scale, scale),
+        #     stride=(2, 2),
+        #     padding=kernel_size // 2,
+        #     output_padding=(1, 1),
+        #     bias=True,
         #     ),
         #     group_tensor=group_tensor,
         #     group_tensor_inv=group_tensor_inv,
         # )
 
-        # self.transposed_conv2 = EquivariantReynoldsWrap(
-        #     QuaternionTransposeConv(
-        #         in_channels=scale*n_feats,
-        #         out_channels=n_feats,
-        #         kernel_size=(4,4),
-        #         stride=(2,2),
-        #         padding=(1,1),
-        #         output_padding=(0,0),
+        # # Merging code for smooth tiling and equal coverage:
+        # # In the forward() method, after getting x1 and x2:
+        # # x1 covers even rows/cols, x2 covers odd rows/cols.
+        # # We interleave and average overlapping pixels for smoothness.
+        # # Use AverageMerge for merging x1 and x2
+        # self.merge_layer = EquivariantReynoldsWrap(
+        #     QuaternionAverageMerge(
+        #         in_channels=n_feats),
+        #         group_tensor=group_tensor,
+        #         group_tensor_inv=group_tensor_inv,
+        # )
+
+        #####
+        # Iterative transpose conv
+        #####
+        sqrt_scale = int(np.sqrt(scale))
+        self.transposed_conv1 = EquivariantReynoldsWrap(
+            QuaternionTransposeConv(
+                in_channels=scale*scale*n_feats,
+                out_channels=scale*n_feats,
+                kernel_size=(sqrt_scale, sqrt_scale),
+                stride=(sqrt_scale, sqrt_scale),
+                padding=kernel_size // 2,
+                output_padding=0,
+                bias=True
+            ),
+            group_tensor=group_tensor,
+            group_tensor_inv=group_tensor_inv,
+        )
+
+        sqrt_sqrt_scale = int(np.sqrt(sqrt_scale))
+        self.transposed_conv2 = EquivariantReynoldsWrap(
+            QuaternionTransposeConv(
+                in_channels=scale*n_feats,
+                out_channels=n_feats,
+                kernel_size=(sqrt_scale, sqrt_scale),
+                stride=(sqrt_scale, sqrt_scale),
+                padding=kernel_size // 2,
+                output_padding=0,   
+                bias=True
+            ),
+            group_tensor=group_tensor,
+            group_tensor_inv=group_tensor_inv,
+        )
+
+        # Build a list of iterative transpose conv layers until cur_scale == 1
+        # self.transposed_convs_iterative = nn.ModuleList()
+        # cur_scale = scale
+        
+        # while cur_scale > 1:
+        #     sqrt_scale = int(np.sqrt(cur_scale))
+        #     self.transposed_convs_iterative.append(
+        #     EquivariantReynoldsWrap(
+        #         QuaternionTransposeConv(
+        #         in_channels=cur_scale * cur_scale * n_feats,
+        #         out_channels=cur_scale * n_feats,
+        #         kernel_size=(sqrt_scale, sqrt_scale),
+        #         stride=(sqrt_scale, sqrt_scale),
+        #         padding=kernel_size // 2,
+        #         output_padding=0,
         #         bias=True
-        #     ),
-        #     group_tensor=group_tensor,
-        #     group_tensor_inv=group_tensor_inv,
-        #)
+        #         ),
+        #         group_tensor=group_tensor,
+        #         group_tensor_inv=group_tensor_inv,
+        #     )
+        #     )
+        #     cur_scale = sqrt_scale
+
+        # # Helper to apply all iterative transpose convs in forward
+        # def transposed_conv_iterative(x):
+        #     for layer in self.transposed_convs_iterative:
+        #         x = layer(x)
+        #         return x
+        # self.transposed_conv_iterative = transposed_conv_iterative
+
 
         self.post_conv_layer = EquivariantReynoldsWrap(
             QuaternionConv(
@@ -217,21 +249,37 @@ class Upsampler2DQuaternionTransposeConv(nn.Module):
             x = self.conv_layer(x)
             # print("After conv:", x.shape)
             #x = self.conv_layer(x)
+
+
+            """ Iterative transpose conv """
             #x = self.transposed_conv1(x)
             #x = self.transposed_conv2(x)
+            
+            x= self.transposed_conv1(x)
+            x= self.transposed_conv2(x)
+
+            # x is [B,C,H-2,W-2] after conv: make it [B,C,H,W]
+            # Evenly pad x from (1, 64, 61, 61) to (1, 64, 64, 64) using replicate padding
+            x = F.pad(x, (3, 3, 3, 3), mode='replicate')
+
+            # print("After iterative transpose conv:", x.shape)
+
+            """ Left+ right Transpose conv """
 
             #left kernel
-            x1= self.transposed_conv_left(x)
+            # x1= self.transposed_conv_left(x)
 
-            # right kernel
-            x2 = self.transposed_conv_right(x)
+            # # right kernel
+            # x2 = self.transposed_conv_right(x)
 
-            # give me the script to combine the two outputs for correct dimension upsampling
-            # Combine left and right outputs by interleaving their pixels
-            # x1 covers even rows/cols, x2 covers odd rows/cols (due to output_padding)
-            # Both have shape (B, C, H, W), but their nonzero pixels are offset
-            x = self.merge_layer(x1, x2)
+            # # give me the script to combine the two outputs for correct dimension upsampling
+            # # Combine left and right outputs by interleaving their pixels
+            # # x1 covers even rows/cols, x2 covers odd rows/cols (due to output_padding)
+            # # Both have shape (B, C, H, W), but their nonzero pixels are offset
+            # x = self.merge_layer(x1, x2)
 
+
+            """ Simple Transpose conv """
             #x = self.transposed_conv(x)
             # print("After transpose:", x.shape)
             x = self.post_conv_layer(x)
@@ -404,27 +452,27 @@ class Reynolds_QSR(nn.Module):
         # tail based on transpose conv
         ####
 
-        # m_tail = [
-        #         Upsampler2DQuaternionTransposeConv(
-        #             kernel_size=kernel_size,
-        #             scale=scale,
-        #             n_feats=n_feats,
-        #             group_tensor=self.group_tensor,
-        #             group_tensor_inv=self.group_tensor_inv,
-        #         ),
+        m_tail = [
+                Upsampler2DQuaternionTransposeConv(
+                    kernel_size=kernel_size,
+                    scale=scale,
+                    n_feats=n_feats,
+                    group_tensor=self.group_tensor,
+                    group_tensor_inv=self.group_tensor_inv,
+                ),
 
-        #     EquivariantReynoldsWrap(
-        #         QuaternionConv(
-        #             in_channels=n_feats,
-        #             out_channels=n_channels,
-        #             kernel_size=kernel_size,
-        #             stride=1,
-        #             padding=kernel_size // 2,
-        #         ),
-        #         group_tensor=self.group_tensor,
-        #         group_tensor_inv=self.group_tensor_inv,
-        #     ),
-        # ]
+            EquivariantReynoldsWrap(
+                QuaternionConv(
+                    in_channels=n_feats,
+                    out_channels=n_channels,
+                    kernel_size=kernel_size,
+                    stride=1,
+                    padding=kernel_size // 2,
+                ),
+                group_tensor=self.group_tensor,
+                group_tensor_inv=self.group_tensor_inv,
+            ),
+        ]
 
         ############
         #  tail based on pixel shuffle
@@ -454,29 +502,29 @@ class Reynolds_QSR(nn.Module):
         """TAIL based on slerp"""
         ############
 
-        m_tail = [
-             Upsampler2DQuaternionSlerp(
-                    kernel_size=kernel_size,
-                    scale=scale,
-                    n_feats=n_feats,
-                    group_tensor=self.group_tensor,
-                    group_tensor_inv=self.group_tensor_inv,
-                ),
-             EquivariantReynoldsWrap(
-                 QuaternionConv(
-                     in_channels=n_feats,
-                     out_channels=n_channels,
-                     kernel_size=kernel_size,
-                     stride=1,
-                     padding=kernel_size // 2,
-                 ),
-                 group_tensor=self.group_tensor,
-                 group_tensor_inv=self.group_tensor_inv,
-             ),
-         ]
+        # m_tail = [
+        #      Upsampler2DQuaternionSlerp(
+        #             kernel_size=kernel_size,
+        #             scale=scale,
+        #             n_feats=n_feats,
+        #             group_tensor=self.group_tensor,
+        #             group_tensor_inv=self.group_tensor_inv,
+        #         ),
+        #      EquivariantReynoldsWrap(
+        #          QuaternionConv(
+        #              in_channels=n_feats,
+        #              out_channels=n_channels,
+        #              kernel_size=kernel_size,
+        #              stride=1,
+        #              padding=kernel_size // 2,
+        #          ),
+        #          group_tensor=self.group_tensor,
+        #          group_tensor_inv=self.group_tensor_inv,
+        #      ),
+        #  ]
 
         self.head = nn.Sequential(*m_head)
-        #self.body = nn.Sequential(*m_body)
+        # #self.body = nn.Sequential(*m_body)
         self.tail = nn.Sequential(*m_tail)
 
         #print("Model Reynolds_QSR summary with input size: (7, 4, 64, 64)")

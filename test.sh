@@ -1,7 +1,7 @@
 # #!/bin/sh
 
-CUDA_VISIBLE_DEVICES=3 python test.py \
-    --model_to_load "model_best" \
+CUDA_VISIBLE_DEVICES=0 python test.py \
+    --model_to_load "model_latest" \
     --test_dataset_type "Test" \
     --test_only \
     --dist_type "minimum_angle_transformation" \
@@ -14,10 +14,10 @@ CUDA_VISIBLE_DEVICES=3 python test.py \
     --upsample_2d \
     --model "reynolds_qsr" \
     --n_resblocks "0" \
-    --n_resgroups "10" \
-    --n_feats "64" \
+    --n_resgroups "0" \
+    --n_feats "256" \
     --n_channels "4" \
-    --save "reynolds_2layer_transpose_conv" \
+    --save "Iterative_transpose_conv_reynolds" \
     --loss "1*MisOrientation" \
     --patch_size "64" \
     --batch_size "1" \
