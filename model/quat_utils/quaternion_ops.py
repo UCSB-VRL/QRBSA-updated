@@ -166,11 +166,15 @@ def quaternion_conv(
     """
     Applies a quaternion convolution to the incoming data:
     """
-
     cat_kernels_4_r = torch.cat([r_weight, -i_weight, -j_weight, -k_weight], dim=1)
     cat_kernels_4_i = torch.cat([i_weight, r_weight, -k_weight, j_weight], dim=1)
     cat_kernels_4_j = torch.cat([j_weight, k_weight, r_weight, -i_weight], dim=1)
     cat_kernels_4_k = torch.cat([k_weight, -j_weight, i_weight, r_weight], dim=1)
+
+    # cat_kernels_4_r = torch.cat([torch.abs(r_weight), -torch.abs(i_weight), -torch.abs(j_weight), -torch.abs(k_weight)], dim=1)
+    # cat_kernels_4_i = torch.cat([torch.abs(i_weight), torch.abs(r_weight), -torch.abs(k_weight), torch.abs(j_weight)], dim=1)
+    # cat_kernels_4_j = torch.cat([torch.abs(j_weight), torch.abs(k_weight), torch.abs(r_weight), -torch.abs(i_weight)], dim=1)
+    # cat_kernels_4_k = torch.cat([torch.abs(k_weight), -torch.abs(j_weight), torch.abs(i_weight), torch.abs(r_weight)], dim=1)
 
     cat_kernels_4_quaternion = torch.cat(
         [cat_kernels_4_r, cat_kernels_4_i, cat_kernels_4_j, cat_kernels_4_k], dim=0
@@ -214,6 +218,12 @@ def quaternion_transpose_conv(
     cat_kernels_4_i = torch.cat([i_weight, r_weight, -k_weight, j_weight], dim=1)
     cat_kernels_4_j = torch.cat([j_weight, k_weight, r_weight, -i_weight], dim=1)
     cat_kernels_4_k = torch.cat([k_weight, -j_weight, i_weight, r_weight], dim=1)
+
+    # cat_kernels_4_r = torch.cat([torch.abs(r_weight), -torch.abs(i_weight), -torch.abs(j_weight), -torch.abs(k_weight)], dim=1)
+    # cat_kernels_4_i = torch.cat([torch.abs(i_weight), torch.abs(r_weight), -torch.abs(k_weight), torch.abs(j_weight)], dim=1)
+    # cat_kernels_4_j = torch.cat([torch.abs(j_weight), torch.abs(k_weight), torch.abs(r_weight), -torch.abs(i_weight)], dim=1)
+    # cat_kernels_4_k = torch.cat([torch.abs(k_weight), -torch.abs(j_weight), torch.abs(i_weight), torch.abs(r_weight)], dim=1)
+
     cat_kernels_4_quaternion = torch.cat(
         [cat_kernels_4_r, cat_kernels_4_i, cat_kernels_4_j, cat_kernels_4_k], dim=0
     )

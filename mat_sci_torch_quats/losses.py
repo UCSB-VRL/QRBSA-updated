@@ -164,12 +164,14 @@ def safe_divide_act(q,eps=10**-5):
 
 class ActAndLoss:
         """ Wraps together activation and loss """
-        def __init__(self,act,loss, grain_consistency_loss, include_consistency_loss=False, quat_dim=-1):
+        def __init__(self,act,loss, grain_consistency_loss, include_consistency_loss=False, include_L1_vector_part=False, quat_dim=-1):
                 self.act = act
                 self.loss = loss
                 self.quat_dim = quat_dim
                 self.include_consistency_loss = include_consistency_loss
                 self.consistency_loss = grain_consistency_loss
+                self.include_L1_vector_part = include_L1_vector_part
+                self.alpha = 0.1
         def __call__(self,X,labels):
                 consistency_loss = 0
                 # change to [b, ch, h, w] to [b, h, w, ch]
@@ -184,12 +186,17 @@ class ActAndLoss:
                 elif self.act is None:
                     X_act = X 
                 
+                L1_loss = torch.tensor(0.0).to(X.device)
+                if self.include_L1_vector_part:
+                        #import pdb; pdb.set_trace()
+                        L1_loss = F.l1_loss(X_act[..., 1:4], labels[..., 1:4], reduction='none').mean(dim=-1)
                 if not self.include_consistency_loss:
-                        return self.loss(X_act, labels)
+                        dist_loss, chosen_symm = self.loss(X_act, labels)
+                        return (dist_loss + self.alpha * L1_loss, chosen_symm)
                 else:
-                        angles, selected_symmetries =self.loss(X_act,labels)
-                        consistency_loss = self.consistency_loss(X_act,labels, angles, selected_symmetries)
-                        return angles, consistency_loss
+                        angles, selected_symmetries =self.loss(X_act,labels) 
+                        consistency_loss = self.consistency_loss(X_act,labels, angles, selected_symmetries) 
+                        return angles, consistency_loss + L1_loss
                 
         def __str__(self):
                 return f'Act and Loss: ({self.act},{self.loss})'

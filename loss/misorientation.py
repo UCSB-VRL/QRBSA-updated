@@ -16,6 +16,7 @@ class MisOrientation(nn.Module):
         # hard coded for now
         #args.include_consistency_loss = False
         self.include_consistency_loss = args.include_consistency_loss
+        self.include_L1_vector_part = args.include_L1_vector_part
         
         print(f'Parameters for Training Loss')
         print('+++++++++++++++++++++++++++++++++++++++++')
@@ -33,6 +34,7 @@ class MisOrientation(nn.Module):
                                     Loss(dist_func=dist_type, syms=syms),
                                     include_consistency_loss=self.include_consistency_loss,
                                     grain_consistency_loss=ConsitencyLoss(),
+                                    include_L1_vector_part=self.include_L1_vector_part,
                                     quat_dim=1
             )
 

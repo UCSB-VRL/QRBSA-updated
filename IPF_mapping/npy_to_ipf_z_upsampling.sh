@@ -17,8 +17,8 @@
 # 3. Run the script
 
 current_dir=$(pwd)
-modelname="Iterative_transpose_conv_reynolds"
-exp_type="minimum_angle_transform"
+modelname="reynolds_2D_min_angle_loss_include_L1"
+exp_type="minimum_angle_orientation"
 modeltoload="model_best"
 filetype="HR"
 datasettype=("Test")

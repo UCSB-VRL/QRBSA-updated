@@ -181,9 +181,13 @@ class Argparser:
                                 help='resume from specific checkpoint')
         arg_parser.add_argument('--val_freq', type=int, default=200,
                                 help='number of epochs to train')
+        
+
+        # LOSS ADDITIONS.
         arg_parser.add_argument('--include_consistency_loss', type=bool, default=False,
                                 help='consistency loss')
+        arg_parser.add_argument('--include_L1_vector_part', type=bool, default=False,
+                                help='L1 loss for vector part')
 
-       
-        return arg_parser 
-    
+        return arg_parser
+
