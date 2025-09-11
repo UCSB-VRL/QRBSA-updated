@@ -6,7 +6,7 @@ import numpy as np
 
 # from model.quat_utils.Qops_with_QSN import conv2d, Residual_SA
 from model.quat_utils.quaternion_layers import QuaternionConv, QuaternionTransposeConv, PixelShuffle2D, QuaternionAverageMerge, Quaternion2Dslerp
-
+from model.quat_utils.Qops_with_QSN import conv2d, Residual_SA
 # from einops import rearrange
 # ─── requirements ───────────────────────────────────────────────────────────────
 # pip install torch e3nn==0.7.4              # e3nn just for rotation utilities
@@ -96,6 +96,9 @@ class Upsampler2DQuaternionTransposeConv(nn.Module):
                 group_tensor_inv=group_tensor_inv,
             )
         
+        # Have an activation here.
+        #self.activation = nn.ReLU()
+
         # Adding dropout layer after the convolution layer
         #self.dropout = nn.Dropout(p=dropout_prob)  # Dropout with specified probability
         
@@ -103,19 +106,19 @@ class Upsampler2DQuaternionTransposeConv(nn.Module):
         # Transpose conv layer
         #####
 
-        # self.transposed_conv = EquivariantReynoldsWrap(
-        #     QuaternionTransposeConv(
-        #     in_channels=scale*scale*n_feats,
-        #     out_channels=n_feats,
-        #     kernel_size=(scale, scale),
-        #     stride=(scale, scale),
-        #     padding=kernel_size // 2,
-        #     output_padding=(2, 2),
-        #     bias=True
-        #     ),
-        #     group_tensor=group_tensor,
-        #     group_tensor_inv=group_tensor_inv,
-        # )
+        self.transposed_conv = EquivariantReynoldsWrap(
+            QuaternionTransposeConv(
+            in_channels=scale*scale*n_feats,
+            out_channels=n_feats,
+            kernel_size=(scale, scale),
+            stride=(scale, scale),
+            padding=kernel_size // 2,
+            output_padding=(2, 2),
+            bias=True
+            ),
+            group_tensor=group_tensor,
+            group_tensor_inv=group_tensor_inv,
+        )
 
 
 
@@ -166,37 +169,37 @@ class Upsampler2DQuaternionTransposeConv(nn.Module):
         # )
 
         #####
-        # Iterative transpose conv
-        #####
-        sqrt_scale = int(np.sqrt(scale))
-        self.transposed_conv1 = EquivariantReynoldsWrap(
-            QuaternionTransposeConv(
-                in_channels=scale*scale*n_feats,
-                out_channels=scale*n_feats,
-                kernel_size=(sqrt_scale, sqrt_scale),
-                stride=(sqrt_scale, sqrt_scale),
-                padding=kernel_size // 2,
-                output_padding=0,
-                bias=True
-            ),
-            group_tensor=group_tensor,
-            group_tensor_inv=group_tensor_inv,
-        )
+        # # Iterative transpose conv
+        # #####
+        # sqrt_scale = int(np.sqrt(scale))
+        # self.transposed_conv1 = EquivariantReynoldsWrap(
+        #     QuaternionTransposeConv(
+        #         in_channels=scale*scale*n_feats,
+        #         out_channels=scale*n_feats,
+        #         kernel_size=(sqrt_scale, sqrt_scale),
+        #         stride=(sqrt_scale, sqrt_scale),
+        #         padding=kernel_size // 2,
+        #         output_padding=0,
+        #         bias=True
+        #     ),
+        #     group_tensor=group_tensor,
+        #     group_tensor_inv=group_tensor_inv,
+        # )
 
-        sqrt_sqrt_scale = int(np.sqrt(sqrt_scale))
-        self.transposed_conv2 = EquivariantReynoldsWrap(
-            QuaternionTransposeConv(
-                in_channels=scale*n_feats,
-                out_channels=n_feats,
-                kernel_size=(sqrt_scale, sqrt_scale),
-                stride=(sqrt_scale, sqrt_scale),
-                padding=kernel_size // 2,
-                output_padding=0,   
-                bias=True
-            ),
-            group_tensor=group_tensor,
-            group_tensor_inv=group_tensor_inv,
-        )
+        # sqrt_sqrt_scale = int(np.sqrt(sqrt_scale))
+        # self.transposed_conv2 = EquivariantReynoldsWrap(
+        #     QuaternionTransposeConv(
+        #         in_channels=scale*n_feats,
+        #         out_channels=n_feats,
+        #         kernel_size=(sqrt_scale, sqrt_scale),
+        #         stride=(sqrt_scale, sqrt_scale),
+        #         padding=kernel_size // 2,
+        #         output_padding=0,   
+        #         bias=True
+        #     ),
+        #     group_tensor=group_tensor,
+        #     group_tensor_inv=group_tensor_inv,
+        # )
 
         # Build a list of iterative transpose conv layers until cur_scale == 1
         # self.transposed_convs_iterative = nn.ModuleList()
@@ -255,12 +258,12 @@ class Upsampler2DQuaternionTransposeConv(nn.Module):
             #x = self.transposed_conv1(x)
             #x = self.transposed_conv2(x)
             
-            x= self.transposed_conv1(x)
-            x= self.transposed_conv2(x)
+            #x= self.transposed_conv1(x)
+            #x= self.transposed_conv2(x)
 
             # x is [B,C,H-2,W-2] after conv: make it [B,C,H,W]
             # Evenly pad x from (1, 64, 61, 61) to (1, 64, 64, 64) using replicate padding
-            x = F.pad(x, (3, 3, 3, 3), mode='replicate')
+            #x = F.pad(x, (3, 3, 3, 3), mode='replicate')
 
             # print("After iterative transpose conv:", x.shape)
 
@@ -280,7 +283,7 @@ class Upsampler2DQuaternionTransposeConv(nn.Module):
 
 
             """ Simple Transpose conv """
-            #x = self.transposed_conv(x)
+            x = self.transposed_conv(x)
             # print("After transpose:", x.shape)
             x = self.post_conv_layer(x)
             #x = self.post_conv_layer(x)
@@ -474,6 +477,13 @@ class Reynolds_QSR(nn.Module):
             ),
         ]
 
+        m_body = [
+            EquivariantReynoldsWrap(
+                nn.Sequential(*[Residual_SA(n_feats, n_feats) for _ in range(n_resblocks)]),
+                group_tensor=self.group_tensor,
+                group_tensor_inv=self.group_tensor_inv,
+            )
+        ]
         ############
         #  tail based on pixel shuffle
         ############
@@ -524,18 +534,18 @@ class Reynolds_QSR(nn.Module):
         #  ]
 
         self.head = nn.Sequential(*m_head)
-        # #self.body = nn.Sequential(*m_body)
+        #self.body = nn.Sequential(*m_body)
         self.tail = nn.Sequential(*m_tail)
 
         #print("Model Reynolds_QSR summary with input size: (7, 4, 64, 64)")
         #summary(self, input_size=(7, 4, 64, 64))
 
     def forward(self, x):
-        # alpha = 1  # learnable or fixed
+        alpha = 1  # learnable or fixed
         x = self.head(x)
         # x = self.gen_eqv(x, self.head)
-        # res = self.body(x)
-        # x= res + alpha * x
+        #res = self.body(x)
+        #x= res + alpha * x
         # x = self.==gen_eqv(x, self.tail)
         x = self.tail(x)
         return x

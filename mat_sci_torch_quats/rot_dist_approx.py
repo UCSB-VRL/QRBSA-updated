@@ -43,10 +43,16 @@ class RotDistLoss(torch.nn.Module):
         q_pred_neg = torch.stack((q_pred,-q_pred), dim=-2)
         
         # check if q_gt has same dimension as q_pred
+        # if q_gt is not None:
+        #     if q_pred.shape != q_gt.squeeze(-2).shape:
+        #         q_gt = q_gt[...,None,:]
+
+        # check if q_gt has same dimension as q_pred
         if q_gt is not None:
-            if q_pred.shape != q_gt.squeeze(-2).shape:
-                q_gt = q_gt[...,None,:]
-        
+            if len(q_gt.shape) == len(q_pred.shape):
+                # Add the symmetry dimension to match q_pred_neg
+                q_gt = q_gt.unsqueeze(-2)
+
         # expand q_gt to the same shape as q_pred_neg
         q_gt = q_gt.expand_as(q_pred_neg)
 

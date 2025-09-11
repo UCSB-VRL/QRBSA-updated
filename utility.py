@@ -143,6 +143,7 @@ class Misorientation_dist:
         
         syms_type = args.syms_type
         self.include_consistency_loss = args.include_consistency_loss
+        self.include_L1_vector_part = args.include_L1_vector_part
         self.consistency_contribution = 0.2
 
         # NEW CHANGE ADDED.
@@ -168,6 +169,7 @@ class Misorientation_dist:
                                     Loss(dist_func=dist_type, syms=syms), 
                                     include_consistency_loss=self.include_consistency_loss,
                                     grain_consistency_loss=ConsitencyLoss(), 
+                                    include_L1_vector_part=self.include_L1_vector_part,
                                     quat_dim=-1
                                 )
 

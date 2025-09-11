@@ -4,7 +4,7 @@ CUDA_VISIBLE_DEVICES=0 python test.py \
     --model_to_load "model_latest" \
     --test_dataset_type "Test" \
     --test_only \
-    --dist_type "minimum_angle_transformation" \
+    --dist_type "valid_symmHR_expand" \
     --input_dir "/data/home/umang//Materials/Materials_data_mount/fz_reduced/Open_718_Z_Upsampling" \
     --hr_data_dir "Train/HR_Images/preprocessed_imgs_1D" \
     --val_lr_data_dir "Val/LR_Images/X4/preprocessed_imgs_1D" \
@@ -15,9 +15,9 @@ CUDA_VISIBLE_DEVICES=0 python test.py \
     --model "reynolds_qsr" \
     --n_resblocks "0" \
     --n_resgroups "0" \
-    --n_feats "256" \
+    --n_feats "64" \
     --n_channels "4" \
-    --save "Iterative_transpose_conv_reynolds" \
+    --save "reynolds_2D_ACTIVATION_FN_5step_loss_include_L1" \
     --loss "1*MisOrientation" \
     --patch_size "64" \
     --batch_size "1" \
@@ -28,5 +28,5 @@ CUDA_VISIBLE_DEVICES=0 python test.py \
     --syms_req \
     --prog_patch \
     --lr "2e-5" \
-    --include_consistency_loss "False" \
+    --include_consistency_loss "True" \
     --weight_decay "1e-5"

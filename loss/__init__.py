@@ -53,11 +53,13 @@ class Loss(nn.modules.loss._Loss):
                     args,
                     loss_type
                 )
-
             elif loss_type.find('MisOrientation') >= 0:
                 module = import_module('loss.misorientation')
                 loss_function = getattr(module, 'MisOrientation')(args, mode=True)                 
-            
+            elif loss_type.find('valid_symmHR_expand') >= 0:
+                module = import_module('loss.valid_symmHR_expand')
+                loss_function = getattr(module, 'valid_symmHR_expand')(args)
+
             self.loss.append({
                 'type': loss_type,
                 'weight': float(weight),
@@ -93,15 +95,22 @@ class Loss(nn.modules.loss._Loss):
         summer=0
         for i, l in enumerate(self.loss):
             if l['function'] is not None:
-                consistency_weight = 0
+                consistency_weight = 0.1
                 if self.include_consistency_loss:
                     loss, consistency_loss = l['function'](sr, hr)
+                    # Pad consistency_loss to match loss shape by adding 2 to H and 2 to W
+                    if consistency_loss.shape != loss.shape:
+                        pad_h = loss.shape[-2] - consistency_loss.shape[-2]
+                        pad_w = loss.shape[-1] - consistency_loss.shape[-1]
+                        # Pad (left, right, top, bottom): add 1 to each side if pad is 2
+                        padding = (pad_w // 2, pad_w - pad_w // 2, pad_h // 2, pad_h - pad_h // 2)
+                        consistency_loss = F.pad(consistency_loss, padding, mode='replicate')
                     effective_loss = l['weight'] * loss + consistency_weight*l['weight'] * consistency_loss
                 else:
                     loss = l['function'](sr, hr)
                     effective_loss = l['weight'] * loss
-                losses.append(effective_loss)
-                summer += effective_loss.item()
+                losses.append(effective_loss.mean())
+                summer += effective_loss.mean().item()
                 cnt+= 1
                 self.log[-1, i] = float(summer/ cnt)
             elif l['type'] == 'DIS':

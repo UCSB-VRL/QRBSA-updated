@@ -72,11 +72,34 @@ class QuaternionTransposeConv(Module):
         self.j_weight = Parameter(torch.Tensor(*self.w_shape))
         self.k_weight = Parameter(torch.Tensor(*self.w_shape))
 
+        torch.nn.init.normal_(self.r_weight.data, std=0.02)
+        torch.nn.init.normal_(self.i_weight.data, std=0.02)
+        torch.nn.init.normal_(self.j_weight.data, std=0.02)
+        torch.nn.init.normal_(self.k_weight.data, std=0.02)
+
+        # # Initialize weights with random softplus initialization
+        # with torch.no_grad():
+        #     # Initialize with small positive random values
+        #     init_vals = torch.randn(*self.w_shape).abs() * 0.02 + 0.1  # ensure positive values
+        #     self.r_weight.data = F.softplus(init_vals)
+            
+        #     init_vals = torch.randn(*self.w_shape).abs() * 0.02 + 0.1
+        #     self.i_weight.data = F.softplus(init_vals)
+            
+        #     init_vals = torch.randn(*self.w_shape).abs() * 0.02 + 0.1
+        #     self.j_weight.data = F.softplus(init_vals)
+            
+        #     init_vals = torch.randn(*self.w_shape).abs() * 0.02 + 0.1
+        #     self.k_weight.data = F.softplus(init_vals)
+
         if bias:
             self.bias = Parameter(torch.Tensor(out_channels))
         else:
             self.register_parameter("bias", None)
         self.reset_parameters()
+
+        # ADDED: Instantiate the activation function
+        self.activation = QGELU()
 
     def reset_parameters(self):
         affect_init_conv(
@@ -93,7 +116,7 @@ class QuaternionTransposeConv(Module):
             self.bias.data.zero_()
 
     def forward(self, input):
-        return quaternion_transpose_conv(
+        conv_output= quaternion_transpose_conv(
             input,
             self.r_weight,
             self.i_weight,
@@ -106,6 +129,19 @@ class QuaternionTransposeConv(Module):
             self.groups,
             self.dilation,
         )
+    
+        # ADDED: Split, Activate, and Re-concatenate
+        # Split the concatenated output tensor into four parts (r, i, j, k)
+       
+        r_out, i_out, j_out, k_out = torch.split(conv_output, self.out_channels, dim=1)
+        
+        # Apply the QGELU activation to the tuple of tensors
+        r_act, i_act, j_act, k_act = self.activation((r_out, i_out, j_out, k_out))
+        
+        # Re-concatenate the activated parts into a single tensor
+        activated_output = torch.cat([r_act, i_act, j_act, k_act], dim=1)
+
+        return activated_output
 
     def __repr__(self):
         return (
@@ -194,6 +230,20 @@ class QuaternionConv(Module):
         torch.nn.init.normal_(self.i_weight.data, std=0.02)
         torch.nn.init.normal_(self.j_weight.data, std=0.02)
         torch.nn.init.normal_(self.k_weight.data, std=0.02)
+        # # Initialize weights with random softplus initialization
+        # with torch.no_grad():
+        #     # Initialize with small positive random values
+        #     init_vals = torch.randn(*self.w_shape).abs() * 0.02 + 0.1  # ensure positive values
+        #     self.r_weight.data = F.softplus(init_vals)
+            
+        #     init_vals = torch.randn(*self.w_shape).abs() * 0.02 + 0.1
+        #     self.i_weight.data = F.softplus(init_vals)
+            
+        #     init_vals = torch.randn(*self.w_shape).abs() * 0.02 + 0.1
+        #     self.j_weight.data = F.softplus(init_vals)
+            
+        #     init_vals = torch.randn(*self.w_shape).abs() * 0.02 + 0.1
+        #     self.k_weight.data = F.softplus(init_vals)
 
         if self.scale:
             self.scale_param = Parameter(torch.Tensor(self.r_weight.shape))
@@ -204,6 +254,9 @@ class QuaternionConv(Module):
         else:
             self.register_parameter("bias", None)
         self.reset_parameters()
+
+        # ADDED: Instantiate the activation function
+        self.activation = QGELU()
 
     def reset_parameters(self):
         affect_init_conv(
@@ -222,7 +275,7 @@ class QuaternionConv(Module):
             self.bias.data.zero_()
 
     def forward(self, input):
-        return quaternion_conv(
+        conv_output= quaternion_conv(
             input,
             self.r_weight,
             self.i_weight,
@@ -234,6 +287,18 @@ class QuaternionConv(Module):
             self.groups,
             self.dilation,
         )
+    
+        # ADDED: Split, Activate, and Re-concatenate
+        # Split the concatenated output tensor into four parts (r, i, j, k)
+        r_out, i_out, j_out, k_out = torch.split(conv_output, self.out_channels, dim=1)
+        
+        # Apply the QGELU activation to the tuple of tensors
+        r_act, i_act, j_act, k_act = self.activation((r_out, i_out, j_out, k_out))
+        
+        # Re-concatenate the activated parts into a single tensor
+        activated_output = torch.cat([r_act, i_act, j_act, k_act], dim=1)
+
+        return activated_output
 
     def __repr__(self):
         return (
@@ -438,6 +503,21 @@ class QuaternionLinear(Module):
         self.i_weight = Parameter(torch.Tensor(self.in_features, self.out_features))
         self.j_weight = Parameter(torch.Tensor(self.in_features, self.out_features))
         self.k_weight = Parameter(torch.Tensor(self.in_features, self.out_features))
+
+        # Initialize weights with random softplus initialization
+        with torch.no_grad():
+            # Initialize with small random values, then apply softplus inverse
+            init_vals = torch.randn(self.in_features, self.out_features) * 0.02 + 0.1
+            self.r_weight.data = torch.log(torch.expm1(init_vals.clamp(min=1e-6)))
+            
+            init_vals = torch.randn(self.in_features, self.out_features) * 0.02 + 0.1
+            self.i_weight.data = torch.log(torch.expm1(init_vals.clamp(min=1e-6)))
+            
+            init_vals = torch.randn(self.in_features, self.out_features) * 0.02 + 0.1
+            self.j_weight.data = torch.log(torch.expm1(init_vals.clamp(min=1e-6)))
+            
+            init_vals = torch.randn(self.in_features, self.out_features) * 0.02 + 0.1
+            self.k_weight.data = torch.log(torch.expm1(init_vals.clamp(min=1e-6)))
 
         if bias:
             self.bias = Parameter(torch.Tensor(self.out_features * 4))
@@ -653,3 +733,12 @@ class Quaternion2Dslerp(Module):
 
     def __repr__(self):
         return self.__class__.__name__ + "(upscale_factor=" + str(self.upscale_factor) + ")"
+
+class QGELU(nn.Module):
+    """
+    Applies the GELU activation function component-wise to a quaternion tensor.
+    The input is expected to be a tuple of (r, i, j, k) tensors.
+    """
+    def forward(self, q_tuple):
+        r, i, j, k = q_tuple
+        return (F.gelu(r), F.gelu(i), F.gelu(j), F.gelu(k))

@@ -68,6 +68,8 @@ if checkpoint.ok:
     
     # HARCODING CONSISTENCY LOSS PARAMETER
     args.include_consistency_loss = False
+    args.include_L1_vector_part = True
+    
 
     loss = loss.Loss(args, checkpoint) if not args.test_only else None 
     t = Trainer(args, data_loader_train, data_loader_val, data_loader_test,  model, loss, checkpoint) 
